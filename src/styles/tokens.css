@@ -1,0 +1,94 @@
+:root {
+  /* Color: inspired by a velvet jewellery box — ink green lining, antique gold, rosewood accent, ivory paper */
+  --ink-green: #16241d;
+  --ink-green-soft: #1f3327;
+  --gold: #b08d45;
+  --gold-bright: #d4b06a;
+  --ivory: #f5efe3;
+  --ivory-deep: #ece2cd;
+  --rosewood: #7c3f34;
+  --rosewood-bright: #9a5142;
+  --charcoal: #201c17;
+  --line: rgba(32, 28, 23, 0.14);
+  --line-on-dark: rgba(245, 239, 227, 0.18);
+
+  --font-display: 'Fraunces', 'Georgia', serif;
+  --font-body: 'Manrope', -apple-system, sans-serif;
+
+  --radius-s: 3px;
+  --radius-m: 6px;
+  --container: 1200px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  background: var(--ivory);
+  color: var(--charcoal);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: 450;
+  margin: 0;
+  color: var(--ink-green);
+  letter-spacing: -0.01em;
+}
+
+p {
+  margin: 0;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font-family: var(--font-body);
+  cursor: pointer;
+}
+
+img, video {
+  display: block;
+  max-width: 100%;
+}
+
+::selection {
+  background: var(--gold);
+  color: var(--ivory);
+}
+
+:focus-visible {
+  outline: 2px solid var(--rosewood);
+  outline-offset: 2px;
+}
+
+.container {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+@media (max-width: 640px) {
+  .container { padding: 0 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
