@@ -38,7 +38,7 @@ export default function Footer({ onSelectCategory }) {
           </Grid>
           <Grid size={{ xs: 6, sm: 3, md: 4 }}>
             <FooterCol title="Support" links={[
-              ['Shipping & returns', '#'], ['Ring size guide', '#'], ['Care instructions', '#'], ['Contact us', '#'],
+              ['Shipping & returns', '/shipping-policy'], ['Cancellation & refunds', '/refund-policy'], ['Contact us', '/contact'],
             ]} />
           </Grid>
         </Grid>
@@ -55,9 +55,21 @@ export default function Footer({ onSelectCategory }) {
         </Stack>
 
         <Divider sx={{ my: 3, borderColor: 'rgba(250,241,236,0.14)' }} />
+        <Stack direction="row" spacing={3} flexWrap="wrap" rowGap={1} justifyContent="center" sx={{ mb: 2.5 }}>
+          {[['Terms & Conditions', '/terms'], ['Privacy Policy', '/privacy-policy'], ['Cancellation & Refund Policy', '/refund-policy'], ['Shipping Policy', '/shipping-policy'], ['Contact Us', '/contact']].map(([label, href]) => (
+            <Box
+              key={label}
+              component="a"
+              href={href}
+              sx={{ fontSize: 12.5, color: 'rgba(250,241,236,0.6)', textDecoration: 'none', '&:hover': { color: '#fff' } }}
+            >
+              {label}
+            </Box>
+          ))}
+        </Stack>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} justifyContent="space-between" sx={{ fontSize: 13, color: 'rgba(250,241,236,0.55)' }}>
           <span>© {new Date().getFullYear()} Priyasa Fashion</span>
-          <span>Demo storefront — payments run in a safe test flow.</span>
+          <span>Secure payments powered by Razorpay</span>
         </Stack>
         <Typography variant="caption" sx={{ display: 'block', textAlign: 'center', mt: 2, color: 'rgba(250,241,236,0.45)' }}>
           Designed and developed by{' '}

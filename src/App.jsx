@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Snackbar from '@mui/material/Snackbar';
 import Alert from '@mui/material/Alert';
@@ -16,6 +17,11 @@ import Checkout from './components/Checkout.jsx';
 import AdminDashboard from './components/AdminDashboard.jsx';
 import AccountPage from './components/AccountPage.jsx';
 import Footer from './components/Footer.jsx';
+import TermsPage from './components/TermsPage.jsx';
+import PrivacyPolicyPage from './components/PrivacyPolicyPage.jsx';
+import ShippingPolicyPage from './components/ShippingPolicyPage.jsx';
+import RefundPolicyPage from './components/RefundPolicyPage.jsx';
+import ContactPage from './components/ContactPage.jsx';
 
 function slideUp(props) { return <Slide {...props} direction="up" />; }
 
@@ -130,12 +136,22 @@ function Root() {
 
 export default function App() {
   return (
-    <StoreProvider>
-      <AdminAuthProvider>
-        <CustomerAuthProvider>
-          <Root />
-        </CustomerAuthProvider>
-      </AdminAuthProvider>
-    </StoreProvider>
+    <BrowserRouter>
+      <StoreProvider>
+        <AdminAuthProvider>
+          <CustomerAuthProvider>
+            <Routes>
+              <Route path="/" element={<Root />} />
+              <Route path="/terms" element={<TermsPage />} />
+              <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+              <Route path="/shipping-policy" element={<ShippingPolicyPage />} />
+              <Route path="/refund-policy" element={<RefundPolicyPage />} />
+              <Route path="/contact" element={<ContactPage />} />
+              <Route path="*" element={<Root />} />
+            </Routes>
+          </CustomerAuthProvider>
+        </AdminAuthProvider>
+      </StoreProvider>
+    </BrowserRouter>
   );
 }
