@@ -36,7 +36,8 @@ const paymentConfig = {
   // This demo works two ways: fully client-side (fine for testing) or, once
   // backendBaseUrl above is set, with real server-side order creation and
   // signature verification via the code in server/ — see server/README.md.
-  razorpayKeyId: "rzp_test_TYIO8WUt0i3W8t", // e.g. 'rzp_test_xxxxxxxxxxxx'
+  // razorpayKeyId: "rzp_test_TYIO8WUt0i3W8t", // e.g. 'rzp_test_xxxxxxxxxxxx'
+  razorpayKeyId: "rzp_live_TZ8gPh1WrpD8AV", // e.g. 'rzp_live_xxxxxxxxxxxx'
 
   // Stripe: Stripe's modern Payment Element requires a PaymentIntent created
   // on a backend (never expose your secret key in the browser). Paste your
