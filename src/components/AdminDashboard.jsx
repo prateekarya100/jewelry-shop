@@ -1,100 +1,129 @@
-import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import Box from '@mui/material/Box';
-import Stack from '@mui/material/Stack';
-import Typography from '@mui/material/Typography';
-import List from '@mui/material/List';
-import ListItemButton from '@mui/material/ListItemButton';
-import ListItemIcon from '@mui/material/ListItemIcon';
-import ListItemText from '@mui/material/ListItemText';
-import Button from '@mui/material/Button';
-import Paper from '@mui/material/Paper';
-import Grid from '@mui/material/Grid';
-import Table from '@mui/material/Table';
-import TableHead from '@mui/material/TableHead';
-import TableBody from '@mui/material/TableBody';
-import TableRow from '@mui/material/TableRow';
-import TableCell from '@mui/material/TableCell';
-import IconButton from '@mui/material/IconButton';
-import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import TextField from '@mui/material/TextField';
-import Chip from '@mui/material/Chip';
-import Divider from '@mui/material/Divider';
-import Select from '@mui/material/Select';
-import MenuItem from '@mui/material/MenuItem';
-import FormControl from '@mui/material/FormControl';
-import Accordion from '@mui/material/Accordion';
-import AccordionSummary from '@mui/material/AccordionSummary';
-import AccordionDetails from '@mui/material/AccordionDetails';
-import BottomNavigation from '@mui/material/BottomNavigation';
-import BottomNavigationAction from '@mui/material/BottomNavigationAction';
-import Tooltip from '@mui/material/Tooltip';
-import useMediaQuery from '@mui/material/useMediaQuery';
-import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
-import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
-import AddIcon from '@mui/icons-material/Add';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlineOutlined';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import TrendingDownIcon from '@mui/icons-material/TrendingDown';
-import Inventory2Icon from '@mui/icons-material/Inventory2';
-import ReceiptLongIcon from '@mui/icons-material/ReceiptLong';
-import PaymentsIcon from '@mui/icons-material/Payments';
-import WarningAmberIcon from '@mui/icons-material/WarningAmber';
-import PeopleOutlineIcon from '@mui/icons-material/PeopleOutlineOutlined';
-import BlockIcon from '@mui/icons-material/Block';
-import PauseCircleOutlineIcon from '@mui/icons-material/PauseCircleOutlineOutlined';
-import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutlineOutlined';
-import PersonRemoveOutlinedIcon from '@mui/icons-material/PersonRemoveOutlined';
-import SearchIcon from '@mui/icons-material/Search';
-import OrderProgressTracker from './OrderProgressTracker.jsx';
-import { useStore } from '../context/StoreContext.jsx';
-import { useAdminAuth } from '../context/AdminAuthContext.jsx';
-import { formatINR } from '../utils/storage.js';
-import { STATUS_META, STATUS_ORDER, getStatusMeta } from '../utils/orderStatus.js';
-import { buildShippingText, printOrder, downloadOrder } from '../utils/orderExport.js';
-import paymentConfig from '../config/payment.js';
-import Logo from './Logo.jsx';
+import React, { useState, useMemo, useEffect, useCallback } from "react";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
+import Button from "@mui/material/Button";
+import Paper from "@mui/material/Paper";
+import Grid from "@mui/material/Grid";
+import Table from "@mui/material/Table";
+import TableHead from "@mui/material/TableHead";
+import TableBody from "@mui/material/TableBody";
+import TableRow from "@mui/material/TableRow";
+import TableCell from "@mui/material/TableCell";
+import IconButton from "@mui/material/IconButton";
+import ArrowBackRoundedIcon from "@mui/icons-material/ArrowBackRounded";
+import Dialog from "@mui/material/Dialog";
+import DialogTitle from "@mui/material/DialogTitle";
+import DialogContent from "@mui/material/DialogContent";
+import TextField from "@mui/material/TextField";
+import Chip from "@mui/material/Chip";
+import Divider from "@mui/material/Divider";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
+import FormControl from "@mui/material/FormControl";
+import Accordion from "@mui/material/Accordion";
+import AccordionSummary from "@mui/material/AccordionSummary";
+import AccordionDetails from "@mui/material/AccordionDetails";
+import BottomNavigation from "@mui/material/BottomNavigation";
+import BottomNavigationAction from "@mui/material/BottomNavigationAction";
+import Tooltip from "@mui/material/Tooltip";
+import useMediaQuery from "@mui/material/useMediaQuery";
+import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
+import ReceiptLongOutlinedIcon from "@mui/icons-material/ReceiptLongOutlined";
+import LogoutOutlinedIcon from "@mui/icons-material/LogoutOutlined";
+import StorefrontOutlinedIcon from "@mui/icons-material/StorefrontOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import PrintOutlinedIcon from "@mui/icons-material/PrintOutlined";
+import DownloadOutlinedIcon from "@mui/icons-material/DownloadOutlined";
+import TrendingUpIcon from "@mui/icons-material/TrendingUp";
+import TrendingDownIcon from "@mui/icons-material/TrendingDown";
+import Inventory2Icon from "@mui/icons-material/Inventory2";
+import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
+import PaymentsIcon from "@mui/icons-material/Payments";
+import WarningAmberIcon from "@mui/icons-material/WarningAmber";
+import PeopleOutlineIcon from "@mui/icons-material/PeopleOutlineOutlined";
+import BlockIcon from "@mui/icons-material/Block";
+import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutlineOutlined";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import PersonRemoveOutlinedIcon from "@mui/icons-material/PersonRemoveOutlined";
+import SearchIcon from "@mui/icons-material/Search";
+import OrderProgressTracker from "./OrderProgressTracker.jsx";
+import { useStore } from "../context/StoreContext.jsx";
+import { useAdminAuth } from "../context/AdminAuthContext.jsx";
+import { formatINR } from "../utils/storage.js";
+import {
+  STATUS_META,
+  STATUS_ORDER,
+  getStatusMeta,
+} from "../utils/orderStatus.js";
+import {
+  buildShippingText,
+  printOrder,
+  downloadOrder,
+} from "../utils/orderExport.js";
+import paymentConfig from "../config/payment.js";
+import Logo from "./Logo.jsx";
+import PasswordField from "./PasswordField.jsx";
 
 const EMPTY_FORM = {
-  title: '', category: '', tagline: '', description: '',
-  price: '', discount: '', images: '', video: '', material: '', stock: '',
+  title: "",
+  category: "",
+  tagline: "",
+  description: "",
+  price: "",
+  discount: "",
+  images: "",
+  video: "",
+  material: "",
+  stock: "",
 };
 
 const NAV = [
-  { key: 'overview', label: 'Overview', icon: DashboardOutlinedIcon },
-  { key: 'products', label: 'Products', icon: Inventory2OutlinedIcon },
-  { key: 'orders', label: 'Orders', icon: ReceiptLongOutlinedIcon },
-  { key: 'customers', label: 'Customers', icon: PeopleOutlineIcon },
+  { key: "overview", label: "Overview", icon: DashboardOutlinedIcon },
+  { key: "products", label: "Products", icon: Inventory2OutlinedIcon },
+  { key: "orders", label: "Orders", icon: ReceiptLongOutlinedIcon },
+  { key: "customers", label: "Customers", icon: PeopleOutlineIcon },
 ];
 
 const CUSTOMER_STATUS_META = {
-  active: { label: 'Active', bg: 'rgba(74,122,82,0.12)', color: 'success.main' },
-  suspended: { label: 'Suspended', bg: 'rgba(184,112,63,0.16)', color: 'secondary.dark' },
-  deactivated: { label: 'Deactivated', bg: 'rgba(122,32,54,0.1)', color: 'error.main' },
+  active: {
+    label: "Active",
+    bg: "rgba(74,122,82,0.12)",
+    color: "success.main",
+  },
+  suspended: {
+    label: "Suspended",
+    bg: "rgba(184,112,63,0.16)",
+    color: "secondary.dark",
+  },
+  deactivated: {
+    label: "Deactivated",
+    bg: "rgba(122,32,54,0.1)",
+    color: "error.main",
+  },
 };
 
 const DATE_FILTERS = [
-  { value: 'all', label: 'All time' },
-  { value: 'week', label: 'This week' },
-  { value: 'month', label: 'This month' },
-  { value: 'year', label: 'This year' },
-  { value: 'custom', label: 'Custom range' },
+  { value: "all", label: "All time" },
+  { value: "week", label: "This week" },
+  { value: "month", label: "This month" },
+  { value: "year", label: "This year" },
+  { value: "custom", label: "Custom range" },
 ];
 
-async function api(path, { token, method = 'GET', body } = {}) {
+async function api(path, { token, method = "GET", body } = {}) {
   const res = await fetch(`${paymentConfig.backendBaseUrl}${path}`, {
     method,
     headers: {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
@@ -111,27 +140,38 @@ async function api(path, { token, method = 'GET', body } = {}) {
 
 export default function AdminDashboard({ onExit }) {
   const { products, orders: localOrders, refreshProducts, notify } = useStore();
-  const { isAdmin, login, submitMfaCode, mfaChallengePending, error, clearError, token, logout } = useAdminAuth();
+  const {
+    isAdmin,
+    login,
+    submitMfaCode,
+    mfaChallengePending,
+    error,
+    clearError,
+    token,
+    logout,
+  } = useAdminAuth();
   // Below this width, use the compact phone shell (bottom nav, card lists
   // instead of tables). Deliberately narrower than a typical "mobile"
   // breakpoint (820px) — portrait tablets (iPad Mini at 744px, iPad at
   // 768px) have plenty of room for the real sidebar + table layout, and
   // shouldn't be squeezed into the phone treatment.
-  const isMobile = useMediaQuery('(max-width:680px)');
-  const [nav, setNav] = useState('overview');
-  const [productPage, setProductPage] = useState('list'); // 'list' | 'form'
+  const isMobile = useMediaQuery("(max-width:680px)");
+  const [nav, setNav] = useState("overview");
+  const [productPage, setProductPage] = useState("list"); // 'list' | 'form'
   const [form, setForm] = useState(EMPTY_FORM);
   const [editingId, setEditingId] = useState(null);
-  const [formError, setFormError] = useState('');
+  const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
   const [backendOrders, setBackendOrders] = useState(null); // null until first backend fetch resolves
 
   // Order filters
-  const [dateFilter, setDateFilter] = useState('all');
-  const [customFrom, setCustomFrom] = useState('');
-  const [customTo, setCustomTo] = useState('');
+  const [dateFilter, setDateFilter] = useState("all");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo] = useState("");
 
-  useEffect(() => { if (isAdmin) refreshProducts(); }, [isAdmin, refreshProducts]);
+  useEffect(() => {
+    if (isAdmin) refreshProducts();
+  }, [isAdmin, refreshProducts]);
 
   // Orders come from the shared backend when one is configured — that's
   // what makes status changes here visible in the customer's own "My
@@ -140,29 +180,39 @@ export default function AdminDashboard({ onExit }) {
   const loadOrders = useCallback(async () => {
     if (!paymentConfig.backendBaseUrl || !isAdmin) return;
     try {
-      const data = await api('/api/admin/orders', { token });
+      const data = await api("/api/admin/orders", { token });
       setBackendOrders(data);
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
-      console.warn('Could not load orders from backend:', err);
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      console.warn("Could not load orders from backend:", err);
       setBackendOrders([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, isAdmin]);
 
-  useEffect(() => { loadOrders(); }, [loadOrders]);
+  useEffect(() => {
+    loadOrders();
+  }, [loadOrders]);
 
-  const orders = paymentConfig.backendBaseUrl ? (backendOrders || []) : localOrders;
+  const orders = paymentConfig.backendBaseUrl
+    ? backendOrders || []
+    : localOrders;
 
   // --- Customers (admin moderation: suspend, deactivate, reactivate, delete) ---
   const [customers, setCustomers] = useState(null);
-  const [customerSearch, setCustomerSearch] = useState('');
+  const [customerSearch, setCustomerSearch] = useState("");
   const filteredCustomers = useMemo(() => {
     if (!customers) return customers;
     const q = customerSearch.trim().toLowerCase();
     if (!q) return customers;
-    return customers.filter((c) =>
-      (c.email || '').toLowerCase().includes(q) || (c.phone || '').includes(q) || (c.name || '').toLowerCase().includes(q)
+    return customers.filter(
+      (c) =>
+        (c.email || "").toLowerCase().includes(q) ||
+        (c.phone || "").includes(q) ||
+        (c.name || "").toLowerCase().includes(q),
     );
   }, [customers, customerSearch]);
   const [deleteTarget, setDeleteTarget] = useState(null); // customer pending permanent deletion
@@ -170,52 +220,79 @@ export default function AdminDashboard({ onExit }) {
   const loadCustomers = useCallback(async () => {
     if (!paymentConfig.backendBaseUrl || !isAdmin) return;
     try {
-      const data = await api('/api/admin/customers', { token });
+      const data = await api("/api/admin/customers", { token });
       setCustomers(data);
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
-      console.warn('Could not load customers from backend:', err);
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      console.warn("Could not load customers from backend:", err);
       setCustomers([]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, isAdmin]);
 
-  useEffect(() => { loadCustomers(); }, [loadCustomers]);
+  useEffect(() => {
+    loadCustomers();
+  }, [loadCustomers]);
 
   async function handleCustomerStatusChange(customerId, status) {
     try {
-      await api(`/api/admin/customers/${customerId}/status`, { token, method: 'PUT', body: { status } });
+      await api(`/api/admin/customers/${customerId}/status`, {
+        token,
+        method: "PUT",
+        body: { status },
+      });
       await loadCustomers();
       notify(`Account ${status}`);
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       notify(err.message);
     }
   }
 
   async function handleDeleteCustomer(customerId) {
     try {
-      await api(`/api/admin/customers/${customerId}`, { token, method: 'DELETE' });
+      await api(`/api/admin/customers/${customerId}`, {
+        token,
+        method: "DELETE",
+      });
       await loadCustomers();
       setDeleteTarget(null);
-      notify('Account permanently deleted');
+      notify("Account permanently deleted");
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       notify(err.message);
     }
   }
 
   async function handleStatusChange(orderId, status) {
     if (!paymentConfig.backendBaseUrl) {
-      notify('Connect a backend (src/config/payment.js) to change order status.');
+      notify(
+        "Connect a backend (src/config/payment.js) to change order status.",
+      );
       return;
     }
     try {
-      await api(`/api/admin/orders/${orderId}/status`, { token, method: 'PUT', body: { status } });
+      await api(`/api/admin/orders/${orderId}/status`, {
+        token,
+        method: "PUT",
+        body: { status },
+      });
       await loadOrders();
-      notify('Order status updated');
+      notify("Order status updated");
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       notify(err.message);
     }
   }
@@ -227,10 +304,15 @@ export default function AdminDashboard({ onExit }) {
     // Real week-over-week comparison — this week's orders/revenue vs the
     // previous 7-day window, from actual order dates (no fabricated numbers).
     const now = new Date();
-    const weekAgo = new Date(now); weekAgo.setDate(now.getDate() - 7);
-    const twoWeeksAgo = new Date(now); twoWeeksAgo.setDate(now.getDate() - 14);
+    const weekAgo = new Date(now);
+    weekAgo.setDate(now.getDate() - 7);
+    const twoWeeksAgo = new Date(now);
+    twoWeeksAgo.setDate(now.getDate() - 14);
     const thisWeekOrders = orders.filter((o) => new Date(o.date) >= weekAgo);
-    const lastWeekOrders = orders.filter((o) => { const d = new Date(o.date); return d >= twoWeeksAgo && d < weekAgo; });
+    const lastWeekOrders = orders.filter((o) => {
+      const d = new Date(o.date);
+      return d >= twoWeeksAgo && d < weekAgo;
+    });
     const thisWeekRevenue = thisWeekOrders.reduce((s, o) => s + o.total, 0);
     const lastWeekRevenue = lastWeekOrders.reduce((s, o) => s + o.total, 0);
 
@@ -251,23 +333,26 @@ export default function AdminDashboard({ onExit }) {
   }, [products, orders]);
 
   const filteredOrders = useMemo(() => {
-    if (dateFilter === 'all') return orders;
+    if (dateFilter === "all") return orders;
     const now = new Date();
     return orders.filter((o) => {
       const d = new Date(o.date);
-      if (dateFilter === 'week') {
-        const from = new Date(now); from.setDate(now.getDate() - 7);
+      if (dateFilter === "week") {
+        const from = new Date(now);
+        from.setDate(now.getDate() - 7);
         return d >= from;
       }
-      if (dateFilter === 'month') {
-        const from = new Date(now); from.setMonth(now.getMonth() - 1);
+      if (dateFilter === "month") {
+        const from = new Date(now);
+        from.setMonth(now.getMonth() - 1);
         return d >= from;
       }
-      if (dateFilter === 'year') {
-        const from = new Date(now); from.setFullYear(now.getFullYear() - 1);
+      if (dateFilter === "year") {
+        const from = new Date(now);
+        from.setFullYear(now.getFullYear() - 1);
         return d >= from;
       }
-      if (dateFilter === 'custom') {
+      if (dateFilter === "custom") {
         if (customFrom && d < new Date(customFrom)) return false;
         if (customTo && d > new Date(`${customTo}T23:59:59`)) return false;
         return true;
@@ -279,20 +364,26 @@ export default function AdminDashboard({ onExit }) {
   function openAddForm() {
     setEditingId(null);
     setForm(EMPTY_FORM);
-    setFormError('');
-    setProductPage('form');
+    setFormError("");
+    setProductPage("form");
   }
 
   function openEditForm(p) {
     setEditingId(p.id);
     setForm({
-      title: p.title, category: p.category, tagline: p.tagline || '',
-      description: p.description || '', price: p.price, discount: p.discount || 0,
-      images: (p.images || []).join(', '), video: p.video || '',
-      material: p.material || '', stock: p.stock ?? '',
+      title: p.title,
+      category: p.category,
+      tagline: p.tagline || "",
+      description: p.description || "",
+      price: p.price,
+      discount: p.discount || 0,
+      images: (p.images || []).join(", "),
+      video: p.video || "",
+      material: p.material || "",
+      stock: p.stock ?? "",
     });
-    setFormError('');
-    setProductPage('form');
+    setFormError("");
+    setProductPage("form");
   }
 
   // If the backend rejects a request as unauthenticated (session expired,
@@ -303,13 +394,13 @@ export default function AdminDashboard({ onExit }) {
   function handleSessionExpired() {
     logout();
     onExit();
-    notify('Your session expired — please sign in again.');
+    notify("Your session expired — please sign in again.");
   }
 
   async function submitForm(e) {
     e.preventDefault();
     if (!form.title.trim() || !form.category.trim() || !form.price) {
-      setFormError('Title, category and price are required.');
+      setFormError("Title, category and price are required.");
       return;
     }
     const payload = {
@@ -319,28 +410,44 @@ export default function AdminDashboard({ onExit }) {
       description: form.description.trim(),
       price: Number(form.price) || 0,
       discount: Number(form.discount) || 0,
-      images: form.images.split(',').map((s) => s.trim()).filter(Boolean),
+      images: form.images
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
       video: form.video.trim(),
       material: form.material.trim(),
       stock: Number(form.stock) || 0,
     };
     if (payload.images.length === 0) {
-      payload.images = ['https://images.unsplash.com/photo-1611085583191-a3b181a88401?q=80&w=900&auto=format&fit=crop'];
+      payload.images = [
+        "https://images.unsplash.com/photo-1611085583191-a3b181a88401?q=80&w=900&auto=format&fit=crop",
+      ];
     }
     setSaving(true);
-    setFormError('');
+    setFormError("");
     try {
       if (editingId) {
-        await api(`/api/admin/products/${editingId}`, { token, method: 'PUT', body: payload });
-        notify('Product updated');
+        await api(`/api/admin/products/${editingId}`, {
+          token,
+          method: "PUT",
+          body: payload,
+        });
+        notify("Product updated");
       } else {
-        await api('/api/admin/products', { token, method: 'POST', body: payload });
-        notify('Product added — now live on the storefront');
+        await api("/api/admin/products", {
+          token,
+          method: "POST",
+          body: payload,
+        });
+        notify("Product added — now live on the storefront");
       }
       await refreshProducts();
-      setProductPage('list');
+      setProductPage("list");
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       setFormError(err.message);
     } finally {
       setSaving(false);
@@ -349,44 +456,88 @@ export default function AdminDashboard({ onExit }) {
 
   async function handleDelete(id) {
     try {
-      await api(`/api/admin/products/${id}`, { token, method: 'DELETE' });
+      await api(`/api/admin/products/${id}`, { token, method: "DELETE" });
       await refreshProducts();
-      notify('Product removed');
+      notify("Product removed");
     } catch (err) {
-      if (err.status === 401) { handleSessionExpired(); return; }
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
       notify(err.message);
     }
   }
 
   if (!isAdmin) {
-    return <AdminLoginPage onExit={onExit} login={login} submitMfaCode={submitMfaCode} mfaChallengePending={mfaChallengePending} error={error} clearError={clearError} />;
+    return (
+      <AdminLoginPage
+        onExit={onExit}
+        login={login}
+        submitMfaCode={submitMfaCode}
+        mfaChallengePending={mfaChallengePending}
+        error={error}
+        clearError={clearError}
+      />
+    );
   }
 
   return (
-    <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', display: 'flex', pb: isMobile ? 7 : 0 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "background.default",
+        display: "flex",
+        pb: isMobile ? 7 : 0,
+      }}
+    >
       {/* Mobile top bar (replaces sidebar below 820px) */}
       {isMobile && (
-        <Box sx={{
-          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 20,
-          bgcolor: 'primary.main', color: 'primary.contrastText',
-          height: 56, display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          px: 2, borderBottom: '1px solid rgba(250,241,236,0.12)',
-        }}>
+        <Box
+          sx={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            bgcolor: "primary.main",
+            color: "primary.contrastText",
+            height: 56,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            px: 2,
+            borderBottom: "1px solid rgba(250,241,236,0.12)",
+          }}
+        >
           <Stack
-            direction="row" alignItems="center" spacing={1}
-            component="button" onClick={() => setNav('overview')}
-            sx={{ background: 'none', border: 0, p: 0, cursor: 'pointer' }}
+            direction="row"
+            alignItems="center"
+            spacing={1}
+            component="button"
+            onClick={() => setNav("overview")}
+            sx={{ background: "none", border: 0, p: 0, cursor: "pointer" }}
           >
             <Logo size={26} wordmarkSize={15} />
           </Stack>
           <Stack direction="row" spacing={0.5}>
             <Tooltip title="View store">
-              <IconButton size="small" onClick={onExit} sx={{ color: 'primary.contrastText' }}>
+              <IconButton
+                size="small"
+                onClick={onExit}
+                sx={{ color: "primary.contrastText" }}
+              >
                 <StorefrontOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
             <Tooltip title="Log out">
-              <IconButton size="small" onClick={() => { logout(); onExit(); }} sx={{ color: 'primary.contrastText' }}>
+              <IconButton
+                size="small"
+                onClick={() => {
+                  logout();
+                  onExit();
+                }}
+                sx={{ color: "primary.contrastText" }}
+              >
                 <LogoutOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -401,19 +552,29 @@ export default function AdminDashboard({ onExit }) {
           sx={{
             width: 240,
             flexShrink: 0,
-            borderRight: '1px solid',
-            borderColor: 'divider',
-            bgcolor: 'primary.main',
-            color: 'primary.contrastText',
-            display: 'flex',
-            flexDirection: 'column',
+            borderRight: "1px solid",
+            borderColor: "divider",
+            bgcolor: "primary.main",
+            color: "primary.contrastText",
+            display: "flex",
+            flexDirection: "column",
             py: 2.5,
           }}
         >
           <Stack
-            direction="row" alignItems="center" spacing={1.2}
-            component="button" onClick={() => setNav('overview')}
-            sx={{ px: 2.5, mb: 3, background: 'none', border: 0, cursor: 'pointer', textAlign: 'left' }}
+            direction="row"
+            alignItems="center"
+            spacing={1.2}
+            component="button"
+            onClick={() => setNav("overview")}
+            sx={{
+              px: 2.5,
+              mb: 3,
+              background: "none",
+              border: 0,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
           >
             <Logo size={30} wordmarkSize={17} />
           </Stack>
@@ -425,12 +586,17 @@ export default function AdminDashboard({ onExit }) {
                 selected={nav === item.key}
                 onClick={() => setNav(item.key)}
                 sx={{
-                  borderRadius: 1.5, mb: 0.5, color: 'rgba(250,241,236,0.85)',
-                  '&.Mui-selected': { bgcolor: 'rgba(250,241,236,0.12)', color: '#fff' },
-                  '&:hover': { bgcolor: 'rgba(250,241,236,0.08)' },
+                  borderRadius: 1.5,
+                  mb: 0.5,
+                  color: "rgba(250,241,236,0.85)",
+                  "&.Mui-selected": {
+                    bgcolor: "rgba(250,241,236,0.12)",
+                    color: "#fff",
+                  },
+                  "&:hover": { bgcolor: "rgba(250,241,236,0.08)" },
                 }}
               >
-                <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}>
+                <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
                   <item.icon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText primary={item.label} />
@@ -439,12 +605,25 @@ export default function AdminDashboard({ onExit }) {
           </List>
 
           <Stack spacing={0.5} sx={{ px: 1.5 }}>
-            <ListItemButton onClick={onExit} sx={{ borderRadius: 1.5, color: 'rgba(250,241,236,0.85)' }}>
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}><StorefrontOutlinedIcon fontSize="small" /></ListItemIcon>
+            <ListItemButton
+              onClick={onExit}
+              sx={{ borderRadius: 1.5, color: "rgba(250,241,236,0.85)" }}
+            >
+              <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
+                <StorefrontOutlinedIcon fontSize="small" />
+              </ListItemIcon>
               <ListItemText primary="View store" />
             </ListItemButton>
-            <ListItemButton onClick={() => { logout(); onExit(); }} sx={{ borderRadius: 1.5, color: 'rgba(250,241,236,0.85)' }}>
-              <ListItemIcon sx={{ color: 'inherit', minWidth: 40 }}><LogoutOutlinedIcon fontSize="small" /></ListItemIcon>
+            <ListItemButton
+              onClick={() => {
+                logout();
+                onExit();
+              }}
+              sx={{ borderRadius: 1.5, color: "rgba(250,241,236,0.85)" }}
+            >
+              <ListItemIcon sx={{ color: "inherit", minWidth: 40 }}>
+                <LogoutOutlinedIcon fontSize="small" />
+              </ListItemIcon>
               <ListItemText primary="Log out" />
             </ListItemButton>
           </Stack>
@@ -452,21 +631,59 @@ export default function AdminDashboard({ onExit }) {
       )}
 
       {/* Main content */}
-      <Box sx={{ flex: 1, p: { xs: 2, sm: 2.5, md: 4 }, pt: isMobile ? 9 : { md: 4 }, maxWidth: 1200, overflowX: 'hidden', minWidth: 0 }}>
-        {nav === 'overview' && (
+      <Box
+        sx={{
+          flex: 1,
+          p: { xs: 2, sm: 2.5, md: 4 },
+          pt: isMobile ? 9 : { md: 4 },
+          maxWidth: 1200,
+          overflowX: "hidden",
+          minWidth: 0,
+        }}
+      >
+        {nav === "overview" && (
           <Box>
-            <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 }, mb: 3 }}>Overview</Typography>
+            <Typography
+              variant="h4"
+              sx={{ fontSize: { xs: 22, md: 26 }, mb: 3 }}
+            >
+              Overview
+            </Typography>
             <Grid container spacing={2} sx={{ mb: 4 }}>
-              <StatCard label="Products" value={stats.productCount} icon={Inventory2Icon} onClick={() => setNav('products')} />
-              <StatCard label="Orders" value={stats.orderCount} icon={ReceiptLongIcon} trend={stats.orderTrend} onClick={() => setNav('orders')} />
-              <StatCard label="Revenue" value={formatINR(stats.revenue)} icon={PaymentsIcon} trend={stats.revenueTrend} />
-              <StatCard label="Low stock (≤5)" value={stats.lowStock} icon={WarningAmberIcon} accent={stats.lowStock > 0} onClick={() => setNav('products')} />
+              <StatCard
+                label="Products"
+                value={stats.productCount}
+                icon={Inventory2Icon}
+                onClick={() => setNav("products")}
+              />
+              <StatCard
+                label="Orders"
+                value={stats.orderCount}
+                icon={ReceiptLongIcon}
+                trend={stats.orderTrend}
+                onClick={() => setNav("orders")}
+              />
+              <StatCard
+                label="Revenue"
+                value={formatINR(stats.revenue)}
+                icon={PaymentsIcon}
+                trend={stats.revenueTrend}
+              />
+              <StatCard
+                label="Low stock (≤5)"
+                value={stats.lowStock}
+                icon={WarningAmberIcon}
+                accent={stats.lowStock > 0}
+                onClick={() => setNav("products")}
+              />
             </Grid>
-            <Typography variant="h6" sx={{ fontSize: 18, mb: 1.5 }}>Recent orders</Typography>
+            <Typography variant="h6" sx={{ fontSize: 18, mb: 1.5 }}>
+              Recent orders
+            </Typography>
             {orders.length === 0 ? (
               <Typography color="text.secondary">No orders yet.</Typography>
             ) : (
-              <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+              <Paper variant="outlined" sx={{ overflowX: "auto" }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -480,13 +697,28 @@ export default function AdminDashboard({ onExit }) {
                     {orders.slice(0, 5).map((o) => {
                       const meta = getStatusMeta(o.fulfillmentStatus);
                       return (
-                        <TableRow key={o.id} hover onClick={() => setNav('orders')} sx={{ cursor: 'pointer' }}>
+                        <TableRow
+                          key={o.id}
+                          hover
+                          onClick={() => setNav("orders")}
+                          sx={{ cursor: "pointer" }}
+                        >
                           <TableCell>{o.id}</TableCell>
                           <TableCell>{o.customer.name}</TableCell>
                           <TableCell>
-                            <Chip size="small" label={meta.label} sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700 }} />
+                            <Chip
+                              size="small"
+                              label={meta.label}
+                              sx={{
+                                bgcolor: meta.bg,
+                                color: meta.color,
+                                fontWeight: 700,
+                              }}
+                            />
                           </TableCell>
-                          <TableCell align="right">{formatINR(o.total)}</TableCell>
+                          <TableCell align="right">
+                            {formatINR(o.total)}
+                          </TableCell>
                         </TableRow>
                       );
                     })}
@@ -497,33 +729,98 @@ export default function AdminDashboard({ onExit }) {
           </Box>
         )}
 
-        {nav === 'products' && productPage === 'list' && (
+        {nav === "products" && productPage === "list" && (
           <Box>
-            <Stack direction={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between" spacing={1.5} sx={{ mb: 3 }}>
-              <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 } }}>Products</Typography>
-              <Button variant="contained" startIcon={<AddIcon />} onClick={openAddForm}>Add product</Button>
+            <Stack
+              direction={{ xs: "column", sm: "row" }}
+              alignItems={{ xs: "stretch", sm: "center" }}
+              justifyContent="space-between"
+              spacing={1.5}
+              sx={{ mb: 3 }}
+            >
+              <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 } }}>
+                Products
+              </Typography>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={openAddForm}
+              >
+                Add product
+              </Button>
             </Stack>
 
             {isMobile ? (
               <Stack spacing={1.25}>
                 {products.map((p) => (
-                  <Paper key={p.id} variant="outlined" sx={{ p: 1.5, display: 'flex', gap: 1.5 }}>
-                    <Box component="img" src={p.images?.[0]} alt="" sx={{ width: 56, height: 56, objectFit: 'cover', borderRadius: 1.5, flexShrink: 0 }} />
+                  <Paper
+                    key={p.id}
+                    variant="outlined"
+                    sx={{ p: 1.5, display: "flex", gap: 1.5 }}
+                  >
+                    <Box
+                      component="img"
+                      src={p.images?.[0]}
+                      alt=""
+                      sx={{
+                        width: 56,
+                        height: 56,
+                        objectFit: "cover",
+                        borderRadius: 1.5,
+                        flexShrink: 0,
+                      }}
+                    />
                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                      <Typography sx={{ fontWeight: 700, fontSize: 14.5 }} noWrap>{p.title}</Typography>
-                      <Typography variant="caption" color="text.secondary" display="block">
-                        {p.category} · Stock: {p.stock ?? '—'}
+                      <Typography
+                        sx={{ fontWeight: 700, fontSize: 14.5 }}
+                        noWrap
+                      >
+                        {p.title}
                       </Typography>
-                      <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mt: 0.75 }}>
-                        <Stack direction="row" alignItems="baseline" spacing={0.75}>
-                          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>{formatINR(p.price)}</Typography>
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        display="block"
+                      >
+                        {p.category} · Stock: {p.stock ?? "—"}
+                      </Typography>
+                      <Stack
+                        direction="row"
+                        alignItems="center"
+                        justifyContent="space-between"
+                        sx={{ mt: 0.75 }}
+                      >
+                        <Stack
+                          direction="row"
+                          alignItems="baseline"
+                          spacing={0.75}
+                        >
+                          <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                            {formatINR(p.price)}
+                          </Typography>
                           {p.discount > 0 && (
-                            <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 700 }}>-{p.discount}%</Typography>
+                            <Typography
+                              variant="caption"
+                              sx={{ color: "success.main", fontWeight: 700 }}
+                            >
+                              -{p.discount}%
+                            </Typography>
                           )}
                         </Stack>
                         <Stack direction="row">
-                          <IconButton size="small" onClick={() => openEditForm(p)}><EditOutlinedIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleDelete(p.id)}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => openEditForm(p)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(p.id)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
                         </Stack>
                       </Stack>
                     </Box>
@@ -531,7 +828,7 @@ export default function AdminDashboard({ onExit }) {
                 ))}
               </Stack>
             ) : (
-              <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+              <Paper variant="outlined" sx={{ overflowX: "auto" }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -548,29 +845,83 @@ export default function AdminDashboard({ onExit }) {
                     {products.map((p) => (
                       <TableRow key={p.id} hover>
                         <TableCell sx={{ py: 0.75 }}>
-                          <Box component="img" src={p.images?.[0]} alt="" sx={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 1.5, display: 'block' }} />
+                          <Box
+                            component="img"
+                            src={p.images?.[0]}
+                            alt=""
+                            sx={{
+                              width: 44,
+                              height: 44,
+                              objectFit: "cover",
+                              borderRadius: 1.5,
+                              display: "block",
+                            }}
+                          />
                         </TableCell>
-                        <TableCell sx={{ fontWeight: 600 }}>{p.title}</TableCell>
+                        <TableCell sx={{ fontWeight: 600 }}>
+                          {p.title}
+                        </TableCell>
                         <TableCell>
-                          <Chip label={p.category} size="small" variant="outlined" sx={{ borderColor: 'divider', fontWeight: 600, fontSize: 11.5 }} />
+                          <Chip
+                            label={p.category}
+                            size="small"
+                            variant="outlined"
+                            sx={{
+                              borderColor: "divider",
+                              fontWeight: 600,
+                              fontSize: 11.5,
+                            }}
+                          />
                         </TableCell>
-                        <TableCell align="right">{formatINR(p.price)}</TableCell>
+                        <TableCell align="right">
+                          {formatINR(p.price)}
+                        </TableCell>
                         <TableCell align="right">
                           {p.discount ? (
-                            <Chip label={`-${p.discount}%`} size="small" sx={{ bgcolor: 'rgba(74,122,82,0.12)', color: 'success.main', fontWeight: 700, fontSize: 11.5 }} />
-                          ) : '—'}
+                            <Chip
+                              label={`-${p.discount}%`}
+                              size="small"
+                              sx={{
+                                bgcolor: "rgba(74,122,82,0.12)",
+                                color: "success.main",
+                                fontWeight: 700,
+                                fontSize: 11.5,
+                              }}
+                            />
+                          ) : (
+                            "—"
+                          )}
                         </TableCell>
                         <TableCell align="right">
                           <Typography
                             variant="body2"
-                            sx={{ fontWeight: 700, color: (p.stock ?? 0) === 0 ? 'error.main' : (p.stock ?? 0) <= 5 ? 'secondary.dark' : 'text.primary' }}
+                            sx={{
+                              fontWeight: 700,
+                              color:
+                                (p.stock ?? 0) === 0
+                                  ? "error.main"
+                                  : (p.stock ?? 0) <= 5
+                                    ? "secondary.dark"
+                                    : "text.primary",
+                            }}
                           >
-                            {p.stock ?? '—'}
+                            {p.stock ?? "—"}
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <IconButton size="small" onClick={() => openEditForm(p)}><EditOutlinedIcon fontSize="small" /></IconButton>
-                          <IconButton size="small" color="error" onClick={() => handleDelete(p.id)}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                          <IconButton
+                            size="small"
+                            onClick={() => openEditForm(p)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => handleDelete(p.id)}
+                          >
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -581,57 +932,165 @@ export default function AdminDashboard({ onExit }) {
           </Box>
         )}
 
-        {nav === 'products' && productPage === 'form' && (
+        {nav === "products" && productPage === "form" && (
           <Box sx={{ maxWidth: 720 }}>
             <Button
               startIcon={<ArrowBackRoundedIcon />}
-              onClick={() => setProductPage('list')}
-              sx={{ mb: 2, color: 'text.secondary', pl: 0 }}
+              onClick={() => setProductPage("list")}
+              sx={{ mb: 2, color: "text.secondary", pl: 0 }}
             >
               Back to products
             </Button>
-            <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 }, mb: 3 }}>
-              {editingId ? 'Edit product' : 'Add a new product'}
+            <Typography
+              variant="h4"
+              sx={{ fontSize: { xs: 22, md: 26 }, mb: 3 }}
+            >
+              {editingId ? "Edit product" : "Add a new product"}
             </Typography>
             <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 3.5 } }}>
               <Box component="form" onSubmit={submitForm}>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField fullWidth size="small" label="Title" value={form.title} onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Title"
+                      value={form.title}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, title: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField fullWidth size="small" label="Section / category" placeholder="e.g. Rings" value={form.category} onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Section / category"
+                      placeholder="e.g. Rings"
+                      value={form.category}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, category: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={12}>
-                    <TextField fullWidth size="small" label="Tagline" value={form.tagline} onChange={(e) => setForm((f) => ({ ...f, tagline: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Tagline"
+                      value={form.tagline}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, tagline: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={12}>
-                    <TextField fullWidth size="small" label="Description" multiline minRows={3} value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Description"
+                      multiline
+                      minRows={3}
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, description: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField fullWidth size="small" type="number" label="Price (₹)" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      label="Price (₹)"
+                      value={form.price}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, price: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField fullWidth size="small" type="number" label="Discount (%)" value={form.discount} onChange={(e) => setForm((f) => ({ ...f, discount: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      label="Discount (%)"
+                      value={form.discount}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, discount: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <TextField fullWidth size="small" label="Material" value={form.material} onChange={(e) => setForm((f) => ({ ...f, material: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Material"
+                      value={form.material}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, material: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={12}>
-                    <TextField fullWidth size="small" label="Image URLs (comma separated)" placeholder="https://…, https://…" value={form.images} onChange={(e) => setForm((f) => ({ ...f, images: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Image URLs (comma separated)"
+                      placeholder="https://…, https://…"
+                      value={form.images}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, images: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 8 }}>
-                    <TextField fullWidth size="small" label="Demo video URL (.mp4 or YouTube)" value={form.video} onChange={(e) => setForm((f) => ({ ...f, video: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="Demo video URL (.mp4 or YouTube)"
+                      value={form.video}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, video: e.target.value }))
+                      }
+                    />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <TextField fullWidth size="small" type="number" label="Stock" value={form.stock} onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))} />
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      label="Stock"
+                      value={form.stock}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, stock: e.target.value }))
+                      }
+                    />
                   </Grid>
                 </Grid>
-                {formError && <Typography color="error.main" variant="body2" sx={{ mt: 2 }}>{formError}</Typography>}
-                <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mt: 3 }}>
-                  <Button color="inherit" onClick={() => setProductPage('list')}>Cancel</Button>
+                {formError && (
+                  <Typography color="error.main" variant="body2" sx={{ mt: 2 }}>
+                    {formError}
+                  </Typography>
+                )}
+                <Stack
+                  direction="row"
+                  justifyContent="flex-end"
+                  spacing={1.5}
+                  sx={{ mt: 3 }}
+                >
+                  <Button
+                    color="inherit"
+                    onClick={() => setProductPage("list")}
+                  >
+                    Cancel
+                  </Button>
                   <Button type="submit" variant="contained" disabled={saving}>
-                    {saving ? 'Saving…' : editingId ? 'Save changes' : 'Add product'}
+                    {saving
+                      ? "Saving…"
+                      : editingId
+                        ? "Save changes"
+                        : "Add product"}
                   </Button>
                 </Stack>
               </Box>
@@ -639,11 +1098,21 @@ export default function AdminDashboard({ onExit }) {
           </Box>
         )}
 
-        {nav === 'orders' && (
+        {nav === "orders" && (
           <Box>
-            <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 }, mb: 2.5 }}>Orders</Typography>
+            <Typography
+              variant="h4"
+              sx={{ fontSize: { xs: 22, md: 26 }, mb: 2.5 }}
+            >
+              Orders
+            </Typography>
 
-            <Stack direction="row" spacing={1} flexWrap="wrap" rowGap={1} sx={{ mb: dateFilter === 'custom' ? 1.5 : 3 }}>
+            <Stack
+              direction="row"
+              spacing={1}
+              rowGap={1}
+              sx={{ mb: dateFilter === "custom" ? 1.5 : 3, flexWrap: "wrap" }}
+            >
               {DATE_FILTERS.map((f) => (
                 <Chip
                   key={f.value}
@@ -652,29 +1121,51 @@ export default function AdminDashboard({ onExit }) {
                   size="small"
                   sx={{
                     fontWeight: 600,
-                    bgcolor: dateFilter === f.value ? 'primary.main' : 'background.paper',
-                    color: dateFilter === f.value ? 'primary.contrastText' : 'text.primary',
-                    border: '1px solid', borderColor: dateFilter === f.value ? 'primary.main' : 'divider',
+                    bgcolor:
+                      dateFilter === f.value
+                        ? "primary.main"
+                        : "background.paper",
+                    color:
+                      dateFilter === f.value
+                        ? "primary.contrastText"
+                        : "text.primary",
+                    border: "1px solid",
+                    borderColor:
+                      dateFilter === f.value ? "primary.main" : "divider",
                   }}
                 />
               ))}
             </Stack>
 
-            {dateFilter === 'custom' && (
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ mb: 3 }}>
+            {dateFilter === "custom" && (
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1.5}
+                sx={{ mb: 3 }}
+              >
                 <TextField
-                  size="small" type="date" label="From" InputLabelProps={{ shrink: true }}
-                  value={customFrom} onChange={(e) => setCustomFrom(e.target.value)}
+                  size="small"
+                  type="date"
+                  label="From"
+                  InputLabelProps={{ shrink: true }}
+                  value={customFrom}
+                  onChange={(e) => setCustomFrom(e.target.value)}
                 />
                 <TextField
-                  size="small" type="date" label="To" InputLabelProps={{ shrink: true }}
-                  value={customTo} onChange={(e) => setCustomTo(e.target.value)}
+                  size="small"
+                  type="date"
+                  label="To"
+                  InputLabelProps={{ shrink: true }}
+                  value={customTo}
+                  onChange={(e) => setCustomTo(e.target.value)}
                 />
               </Stack>
             )}
 
             {filteredOrders.length === 0 ? (
-              <Typography color="text.secondary">No orders in this range.</Typography>
+              <Typography color="text.secondary">
+                No orders in this range.
+              </Typography>
             ) : (
               <Stack spacing={1.25}>
                 {filteredOrders.map((o) => (
@@ -682,8 +1173,10 @@ export default function AdminDashboard({ onExit }) {
                     key={o.id}
                     order={o}
                     products={products}
-                    onCopy={() => notify('Shipping details copied')}
-                    onStatusChange={(status) => handleStatusChange(o.id, status)}
+                    onCopy={() => notify("Shipping details copied")}
+                    onStatusChange={(status) =>
+                      handleStatusChange(o.id, status)
+                    }
                   />
                 ))}
               </Stack>
@@ -691,36 +1184,62 @@ export default function AdminDashboard({ onExit }) {
           </Box>
         )}
 
-        {nav === 'customers' && (
+        {nav === "customers" && (
           <Box>
-            <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 }, mb: 0.5 }}>Customers</Typography>
+            <Typography
+              variant="h4"
+              sx={{ fontSize: { xs: 22, md: 26 }, mb: 0.5 }}
+            >
+              Customers
+            </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-              Suspend or deactivate an account to block sign-in without losing their order history,
-              or delete permanently to remove the account entirely.
+              Suspend or deactivate an account to block sign-in without losing
+              their order history, or delete permanently to remove the account
+              entirely.
             </Typography>
 
             <TextField
-              fullWidth size="small" placeholder="Search by name, email, or phone…"
+              fullWidth
+              size="small"
+              placeholder="Search by name, email, or phone…"
               value={customerSearch}
               onChange={(e) => setCustomerSearch(e.target.value)}
-              InputProps={{ startAdornment: <SearchIcon fontSize="small" sx={{ color: 'text.secondary', mr: 1 }} /> }}
+              InputProps={{
+                startAdornment: (
+                  <SearchIcon
+                    fontSize="small"
+                    sx={{ color: "text.secondary", mr: 1 }}
+                  />
+                ),
+              }}
               sx={{ mb: 2.5, maxWidth: 420 }}
             />
 
             {customers === null ? (
-              <Stack alignItems="center" sx={{ py: 6 }}><CircularProgress size={28} /></Stack>
+              <Stack alignItems="center" sx={{ py: 6 }}>
+                <CircularProgress size={28} />
+              </Stack>
             ) : customers.length === 0 ? (
-              <Typography color="text.secondary">No customer accounts yet.</Typography>
+              <Typography color="text.secondary">
+                No customer accounts yet.
+              </Typography>
             ) : filteredCustomers.length === 0 ? (
-              <Typography color="text.secondary">No customers match "{customerSearch}".</Typography>
+              <Typography color="text.secondary">
+                No customers match "{customerSearch}".
+              </Typography>
             ) : isMobile ? (
               <Stack spacing={1.5}>
                 {filteredCustomers.map((c) => (
-                  <CustomerCard key={c.id} customer={c} onStatusChange={handleCustomerStatusChange} onDelete={() => setDeleteTarget(c)} />
+                  <CustomerCard
+                    key={c.id}
+                    customer={c}
+                    onStatusChange={handleCustomerStatusChange}
+                    onDelete={() => setDeleteTarget(c)}
+                  />
                 ))}
               </Stack>
             ) : (
-              <Paper variant="outlined" sx={{ overflowX: 'auto' }}>
+              <Paper variant="outlined" sx={{ overflowX: "auto" }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
@@ -733,17 +1252,35 @@ export default function AdminDashboard({ onExit }) {
                   </TableHead>
                   <TableBody>
                     {filteredCustomers.map((c) => {
-                      const meta = CUSTOMER_STATUS_META[c.status] || CUSTOMER_STATUS_META.active;
+                      const meta =
+                        CUSTOMER_STATUS_META[c.status] ||
+                        CUSTOMER_STATUS_META.active;
                       return (
                         <TableRow key={c.id} hover>
-                          <TableCell sx={{ fontWeight: 600 }}>{c.name}</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }}>
+                            {c.name}
+                          </TableCell>
                           <TableCell>{c.email || c.phone}</TableCell>
                           <TableCell>
-                            <Chip size="small" label={meta.label} sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700 }} />
+                            <Chip
+                              size="small"
+                              label={meta.label}
+                              sx={{
+                                bgcolor: meta.bg,
+                                color: meta.color,
+                                fontWeight: 700,
+                              }}
+                            />
                           </TableCell>
-                          <TableCell>{new Date(c.createdAt).toLocaleDateString()}</TableCell>
+                          <TableCell>
+                            {new Date(c.createdAt).toLocaleDateString()}
+                          </TableCell>
                           <TableCell align="right">
-                            <CustomerActions customer={c} onStatusChange={handleCustomerStatusChange} onDelete={() => setDeleteTarget(c)} />
+                            <CustomerActions
+                              customer={c}
+                              onStatusChange={handleCustomerStatusChange}
+                              onDelete={() => setDeleteTarget(c)}
+                            />
                           </TableCell>
                         </TableRow>
                       );
@@ -756,19 +1293,37 @@ export default function AdminDashboard({ onExit }) {
         )}
       </Box>
 
-      <Dialog open={!!deleteTarget} onClose={() => setDeleteTarget(null)} maxWidth="xs" fullWidth>
+      <Dialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
         <DialogTitle>Delete this account permanently?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" sx={{ mb: 1 }}>
-            <strong>{deleteTarget?.name}</strong> ({deleteTarget?.email || deleteTarget?.phone}) will be
-            permanently removed and won't be able to sign in again. This can't be undone.
+            <strong>{deleteTarget?.name}</strong> (
+            {deleteTarget?.email || deleteTarget?.phone}) will be permanently
+            removed and won't be able to sign in again. This can't be undone.
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Their past orders are kept for your records but will no longer be linked to an account.
+            Their past orders are kept for your records but will no longer be
+            linked to an account.
           </Typography>
-          <Stack direction="row" justifyContent="flex-end" spacing={1.5} sx={{ mt: 3 }}>
-            <Button color="inherit" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button color="error" variant="contained" onClick={() => handleDeleteCustomer(deleteTarget.id)}>
+          <Stack
+            direction="row"
+            justifyContent="flex-end"
+            spacing={1.5}
+            sx={{ mt: 3 }}
+          >
+            <Button color="inherit" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              color="error"
+              variant="contained"
+              onClick={() => handleDeleteCustomer(deleteTarget.id)}
+            >
               Delete permanently
             </Button>
           </Stack>
@@ -781,8 +1336,13 @@ export default function AdminDashboard({ onExit }) {
           value={nav}
           onChange={(_e, value) => setNav(value)}
           sx={{
-            position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 20,
-            borderTop: '1px solid', borderColor: 'divider',
+            position: "fixed",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            borderTop: "1px solid",
+            borderColor: "divider",
             height: 60,
           }}
         >
@@ -792,7 +1352,10 @@ export default function AdminDashboard({ onExit }) {
               label={item.label}
               value={item.key}
               icon={<item.icon fontSize="small" />}
-              sx={{ '&.Mui-selected': { color: 'secondary.dark' }, minWidth: 'auto' }}
+              sx={{
+                "&.Mui-selected": { color: "secondary.dark" },
+                minWidth: "auto",
+              }}
             />
           ))}
         </BottomNavigation>
@@ -808,38 +1371,95 @@ function StatCard({ label, value, accent, onClick, icon: Icon, trend }) {
         variant="outlined"
         onClick={onClick}
         sx={{
-          p: { xs: 1.75, sm: 2.5 }, position: 'relative', overflow: 'hidden',
-          cursor: onClick ? 'pointer' : 'default',
-          transition: 'box-shadow 0.15s ease, transform 0.15s ease',
-          '&:hover': onClick ? { boxShadow: '0 8px 20px rgba(28,20,32,0.1)', transform: 'translateY(-2px)' } : {},
+          p: { xs: 1.75, sm: 2.5 },
+          position: "relative",
+          overflow: "hidden",
+          cursor: onClick ? "pointer" : "default",
+          transition: "box-shadow 0.15s ease, transform 0.15s ease",
+          "&:hover": onClick
+            ? {
+                boxShadow: "0 8px 20px rgba(28,20,32,0.1)",
+                transform: "translateY(-2px)",
+              }
+            : {},
         }}
       >
-        <Stack direction="row" alignItems="flex-start" justifyContent="space-between">
+        <Stack
+          direction="row"
+          alignItems="flex-start"
+          justifyContent="space-between"
+        >
           <Box>
-            <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, letterSpacing: '0.02em', fontSize: { xs: 11, sm: 12 } }}>{label}</Typography>
-            <Typography variant="h5" sx={{ fontSize: { xs: 20, sm: 28 }, mt: 0.5, color: accent ? 'error.main' : 'primary.main' }}>{value}</Typography>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+                fontSize: { xs: 11, sm: 12 },
+              }}
+            >
+              {label}
+            </Typography>
+            <Typography
+              variant="h5"
+              sx={{
+                fontSize: { xs: 20, sm: 28 },
+                mt: 0.5,
+                color: accent ? "error.main" : "primary.main",
+              }}
+            >
+              {value}
+            </Typography>
           </Box>
           {Icon && (
-            <Box sx={{
-              width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              bgcolor: accent ? 'rgba(122,32,54,0.1)' : 'rgba(184,112,63,0.14)',
-            }}>
-              <Icon sx={{ fontSize: 20, color: accent ? 'error.main' : 'secondary.dark' }} />
+            <Box
+              sx={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                flexShrink: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: accent
+                  ? "rgba(122,32,54,0.1)"
+                  : "rgba(184,112,63,0.14)",
+              }}
+            >
+              <Icon
+                sx={{
+                  fontSize: 20,
+                  color: accent ? "error.main" : "secondary.dark",
+                }}
+              />
             </Box>
           )}
         </Stack>
         {trend && (
-          <Stack direction="row" alignItems="center" spacing={0.5} sx={{ mt: 1.25 }}>
+          <Stack
+            direction="row"
+            alignItems="center"
+            spacing={0.5}
+            sx={{ mt: 1.25 }}
+          >
             {trend.up ? (
-              <TrendingUpIcon sx={{ fontSize: 15, color: 'success.main' }} />
+              <TrendingUpIcon sx={{ fontSize: 15, color: "success.main" }} />
             ) : (
-              <TrendingDownIcon sx={{ fontSize: 15, color: 'error.main' }} />
+              <TrendingDownIcon sx={{ fontSize: 15, color: "error.main" }} />
             )}
-            <Typography variant="caption" sx={{ color: trend.up ? 'success.main' : 'error.main', fontWeight: 700 }}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: trend.up ? "success.main" : "error.main",
+                fontWeight: 700,
+              }}
+            >
               {trend.pct}%
             </Typography>
-            <Typography variant="caption" color="text.secondary">vs last week</Typography>
+            <Typography variant="caption" color="text.secondary">
+              vs last week
+            </Typography>
           </Stack>
         )}
       </Paper>
@@ -849,30 +1469,44 @@ function StatCard({ label, value, accent, onClick, icon: Icon, trend }) {
 
 function OrderAccordion({ order: o, products, onCopy, onStatusChange }) {
   const c = o.customer || {};
-  const isPaid = o.paymentMethod !== 'cod';
-  const status = o.fulfillmentStatus || 'pending';
+  const isPaid = o.paymentMethod !== "cod";
+  const status = o.fulfillmentStatus || "pending";
   const meta = getStatusMeta(status);
-  const isCancelled = status === 'cancelled';
+  const isCancelled = status === "cancelled";
 
-  const productImage = (productId) => products?.find((p) => p.id === productId)?.images?.[0];
+  const productImage = (productId) =>
+    products?.find((p) => p.id === productId)?.images?.[0];
 
   const addressLines = [
     c.address,
-    [c.city, c.state].filter(Boolean).join(', '),
+    [c.city, c.state].filter(Boolean).join(", "),
     c.pincode,
   ].filter(Boolean);
 
   function copyShippingDetails(e) {
     e.stopPropagation();
-    navigator.clipboard?.writeText(buildShippingText(o)).then(onCopy).catch(() => {});
+    navigator.clipboard
+      ?.writeText(buildShippingText(o))
+      .then(onCopy)
+      .catch(() => {});
   }
 
   return (
-    <Accordion variant="outlined" disableGutters sx={{ '&:before': { display: 'none' }, borderRadius: 2, overflow: 'hidden' }}>
+    <Accordion
+      variant="outlined"
+      disableGutters
+      sx={{
+        "&:before": { display: "none" },
+        borderRadius: 2,
+        overflow: "hidden",
+      }}
+    >
       <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ py: 0.5 }}>
         <Stack
-          direction="row" alignItems="center" spacing={2}
-          sx={{ width: '100%', pr: 1 }}
+          direction="row"
+          alignItems="center"
+          spacing={2}
+          sx={{ width: "100%", pr: 1 }}
         >
           {/* Stacked thumbnail preview — a quick visual of what's in the order */}
           <Stack direction="row" sx={{ flexShrink: 0 }}>
@@ -883,99 +1517,203 @@ function OrderAccordion({ order: o, products, onCopy, onStatusChange }) {
                 src={productImage(item.productId) || undefined}
                 alt=""
                 sx={{
-                  width: 40, height: 40, borderRadius: '10px', objectFit: 'cover',
-                  border: '2px solid #fff', bgcolor: 'grey.100',
-                  ml: idx === 0 ? 0 : -1.5, boxShadow: '0 1px 4px rgba(0,0,0,0.12)',
-                  position: 'relative', zIndex: 3 - idx,
+                  width: 40,
+                  height: 40,
+                  borderRadius: "10px",
+                  objectFit: "cover",
+                  border: "2px solid #fff",
+                  bgcolor: "grey.100",
+                  ml: idx === 0 ? 0 : -1.5,
+                  boxShadow: "0 1px 4px rgba(0,0,0,0.12)",
+                  position: "relative",
+                  zIndex: 3 - idx,
                 }}
               />
             ))}
           </Stack>
 
           <Box sx={{ minWidth: 0, flex: 1 }}>
-            <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>{o.id}</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: 15 }} noWrap>
+              {o.id}
+            </Typography>
             <Typography variant="caption" color="text.secondary" noWrap>
-              {c.name || '—'} · {new Date(o.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+              {c.name || "—"} ·{" "}
+              {new Date(o.date).toLocaleDateString("en-IN", {
+                day: "numeric",
+                month: "short",
+                year: "numeric",
+              })}
             </Typography>
           </Box>
 
           <Stack alignItems="flex-end" spacing={0.5} sx={{ flexShrink: 0 }}>
-            <Chip size="small" label={meta.label} sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, fontSize: 11.5 }} />
-            <Typography sx={{ fontWeight: 700, fontSize: 14.5 }}>{formatINR(o.total)}</Typography>
+            <Chip
+              size="small"
+              label={meta.label}
+              sx={{
+                bgcolor: meta.bg,
+                color: meta.color,
+                fontWeight: 700,
+                fontSize: 11.5,
+              }}
+            />
+            <Typography sx={{ fontWeight: 700, fontSize: 14.5 }}>
+              {formatINR(o.total)}
+            </Typography>
           </Stack>
         </Stack>
       </AccordionSummary>
 
-      <AccordionDetails sx={{ pt: 0, bgcolor: 'rgba(184,112,63,0.03)' }}>
+      <AccordionDetails sx={{ pt: 0, bgcolor: "rgba(184,112,63,0.03)" }}>
         <Divider sx={{ mb: 2.5 }} />
 
         {!isCancelled && <OrderProgressTracker status={status} />}
 
-        <Stack direction="row" alignItems="center" justifyContent="space-between" flexWrap="wrap" rowGap={1} sx={{ mb: 2.5, mt: isCancelled ? 0 : 3 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          justifyContent="space-between"
+          rowGap={1}
+          sx={{ mb: 2.5, mt: isCancelled ? 0 : 3, flexWrap: "wrap" }}
+        >
           <FormControl size="small" sx={{ minWidth: 170 }}>
-            <Select value={status} onChange={(e) => onStatusChange(e.target.value)}>
+            <Select
+              value={status}
+              onChange={(e) => onStatusChange(e.target.value)}
+            >
               {STATUS_ORDER.map((s) => (
-                <MenuItem key={s} value={s}>{STATUS_META[s].label}</MenuItem>
+                <MenuItem key={s} value={s}>
+                  {STATUS_META[s].label}
+                </MenuItem>
               ))}
             </Select>
           </FormControl>
           <Stack direction="row" spacing={0.5}>
             <Tooltip title="Print">
-              <IconButton size="small" onClick={() => printOrder(o)}><PrintOutlinedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => printOrder(o)}>
+                <PrintOutlinedIcon fontSize="small" />
+              </IconButton>
             </Tooltip>
             <Tooltip title="Download">
-              <IconButton size="small" onClick={() => downloadOrder(o)}><DownloadOutlinedIcon fontSize="small" /></IconButton>
+              <IconButton size="small" onClick={() => downloadOrder(o)}>
+                <DownloadOutlinedIcon fontSize="small" />
+              </IconButton>
             </Tooltip>
           </Stack>
         </Stack>
 
         <Grid container spacing={3}>
           <Grid size={{ xs: 12, sm: 5 }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography variant="overline" sx={{ color: 'secondary.dark', fontWeight: 700, fontSize: 11.5 }}>Ship to</Typography>
-              <Button size="small" onClick={copyShippingDetails} sx={{ fontSize: 12, minWidth: 'auto', p: 0.5 }}>
+            <Stack
+              direction="row"
+              alignItems="center"
+              justifyContent="space-between"
+            >
+              <Typography
+                variant="overline"
+                sx={{
+                  color: "secondary.dark",
+                  fontWeight: 700,
+                  fontSize: 11.5,
+                }}
+              >
+                Ship to
+              </Typography>
+              <Button
+                size="small"
+                onClick={copyShippingDetails}
+                sx={{ fontSize: 12, minWidth: "auto", p: 0.5 }}
+              >
                 Copy
               </Button>
             </Stack>
-            <Typography sx={{ fontWeight: 700, fontSize: 14.5 }}>{c.name || '—'}</Typography>
-            <Typography variant="body2" color="text.secondary">{c.phone || '—'}</Typography>
-            {c.email && <Typography variant="body2" color="text.secondary">{c.email}</Typography>}
+            <Typography sx={{ fontWeight: 700, fontSize: 14.5 }}>
+              {c.name || "—"}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              {c.phone || "—"}
+            </Typography>
+            {c.email && (
+              <Typography variant="body2" color="text.secondary">
+                {c.email}
+              </Typography>
+            )}
             {addressLines.length > 0 ? (
               <Box sx={{ mt: 0.5 }}>
                 {addressLines.map((line, i) => (
-                  <Typography key={i} variant="body2" color="text.secondary">{line}</Typography>
+                  <Typography key={i} variant="body2" color="text.secondary">
+                    {line}
+                  </Typography>
                 ))}
               </Box>
             ) : (
-              <Typography variant="body2" color="error.main" sx={{ mt: 0.5 }}>No address on file</Typography>
+              <Typography variant="body2" color="error.main" sx={{ mt: 0.5 }}>
+                No address on file
+              </Typography>
             )}
           </Grid>
 
           <Grid size={{ xs: 12, sm: 7 }}>
-            <Typography variant="overline" sx={{ color: 'secondary.dark', fontWeight: 700, fontSize: 11.5 }}>Items</Typography>
+            <Typography
+              variant="overline"
+              sx={{ color: "secondary.dark", fontWeight: 700, fontSize: 11.5 }}
+            >
+              Items
+            </Typography>
             <Stack spacing={1.25} sx={{ mb: 1.5, mt: 0.5 }}>
               {o.items.map((i) => (
-                <Stack key={i.productId} direction="row" alignItems="center" spacing={1.5}>
+                <Stack
+                  key={i.productId}
+                  direction="row"
+                  alignItems="center"
+                  spacing={1.5}
+                >
                   <Box
                     component="img"
                     src={productImage(i.productId) || undefined}
                     alt=""
-                    sx={{ width: 44, height: 44, borderRadius: 1.5, objectFit: 'cover', bgcolor: 'grey.100', flexShrink: 0 }}
+                    sx={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 1.5,
+                      objectFit: "cover",
+                      bgcolor: "grey.100",
+                      flexShrink: 0,
+                    }}
                   />
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{i.title}</Typography>
-                    <Typography variant="caption" color="text.secondary">Qty {i.qty}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+                      {i.title}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      Qty {i.qty}
+                    </Typography>
                   </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700, flexShrink: 0 }}>{formatINR(i.unitPrice * i.qty)}</Typography>
+                  <Typography
+                    variant="body2"
+                    sx={{ fontWeight: 700, flexShrink: 0 }}
+                  >
+                    {formatINR(i.unitPrice * i.qty)}
+                  </Typography>
                 </Stack>
               ))}
             </Stack>
             <Divider sx={{ my: 1 }} />
-            <Stack direction="row" justifyContent="space-between" alignItems="center">
+            <Stack
+              direction="row"
+              justifyContent="space-between"
+              alignItems="center"
+            >
               <Typography variant="body2" color="text.secondary">
-                {isPaid ? (o.paymentRef ? `Ref: ${o.paymentRef}` : 'Paid') : 'Cash on delivery'}
+                {isPaid
+                  ? o.paymentRef
+                    ? `Ref: ${o.paymentRef}`
+                    : "Paid"
+                  : "Cash on delivery"}
               </Typography>
-              <Typography sx={{ fontWeight: 700, fontSize: 16 }}>{formatINR(o.total)}</Typography>
+              <Typography sx={{ fontWeight: 700, fontSize: 16 }}>
+                {formatINR(o.total)}
+              </Typography>
             </Stack>
           </Grid>
         </Grid>
@@ -984,10 +1722,17 @@ function OrderAccordion({ order: o, products, onCopy, onStatusChange }) {
   );
 }
 
-function AdminLoginPage({ onExit, login, submitMfaCode, mfaChallengePending, error, clearError }) {
-  const [identifier, setIdentifier] = useState('');
-  const [password, setPassword] = useState('');
-  const [mfaCode, setMfaCode] = useState('');
+function AdminLoginPage({
+  onExit,
+  login,
+  submitMfaCode,
+  mfaChallengePending,
+  error,
+  clearError,
+}) {
+  const [identifier, setIdentifier] = useState("");
+  const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function submit(e) {
@@ -1005,47 +1750,93 @@ function AdminLoginPage({ onExit, login, submitMfaCode, mfaChallengePending, err
   }
 
   return (
-    <Box sx={{
-      minHeight: '100vh', bgcolor: 'primary.main', display: 'flex',
-      alignItems: 'center', justifyContent: 'center', p: 3,
-    }}>
-      <Paper sx={{ p: { xs: 3.5, sm: 5 }, width: '100%', maxWidth: 400 }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        bgcolor: "primary.main",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        p: 3,
+      }}
+    >
+      <Paper sx={{ p: { xs: 3.5, sm: 5 }, width: "100%", maxWidth: 400 }}>
         <Box sx={{ display: "flex", justifyContent: "center", mb: 3 }}>
           <Logo size={38} wordmarkSize={19} variant="dark" />
         </Box>
-        <Typography variant="h5" sx={{ textAlign: 'center', fontSize: 22, mb: 0.5 }}>Admin sign in</Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ textAlign: 'center', mb: 3 }}>
-          {mfaChallengePending ? 'Enter the 6-digit code from your authenticator app.' : 'Manage products, prices and orders.'}
+        <Typography
+          variant="h5"
+          sx={{ textAlign: "center", fontSize: 22, mb: 0.5 }}
+        >
+          Admin sign in
+        </Typography>
+        <Typography
+          variant="body2"
+          color="text.secondary"
+          sx={{ textAlign: "center", mb: 3 }}
+        >
+          {mfaChallengePending
+            ? "Enter the 6-digit code from your authenticator app."
+            : "Manage products, prices and orders."}
         </Typography>
 
         {mfaChallengePending ? (
           <Box component="form" onSubmit={submitMfa}>
             <TextField
-              autoFocus fullWidth label="6-digit code" value={mfaCode}
-              onChange={(e) => { setMfaCode(e.target.value); if (error) clearError(); }}
-              error={!!error} helperText={error || ' '}
-              inputProps={{ inputMode: 'numeric', maxLength: 6 }}
+              autoFocus
+              fullWidth
+              label="6-digit code"
+              value={mfaCode}
+              onChange={(e) => {
+                setMfaCode(e.target.value);
+                if (error) clearError();
+              }}
+              error={!!error}
+              helperText={error || " "}
+              inputProps={{ inputMode: "numeric", maxLength: 6 }}
             />
-            <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 1 }} disabled={submitting}>
-              {submitting ? 'Verifying…' : 'Verify'}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              size="large"
+              sx={{ mt: 1 }}
+              disabled={submitting}
+            >
+              {submitting ? "Verifying…" : "Verify"}
             </Button>
           </Box>
         ) : (
           <Box component="form" onSubmit={submit}>
             <Stack spacing={2}>
               <TextField
-                autoFocus fullWidth label="Email" value={identifier}
+                autoFocus
+                fullWidth
+                label="Email"
+                value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
               />
-              <TextField
-                fullWidth type="password" label="Password" value={password}
-                onChange={(e) => { setPassword(e.target.value); if (error) clearError(); }}
+              <PasswordField
+                fullWidth
+                label="Password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  if (error) clearError();
+                }}
                 error={!!error}
-                helperText={error || ' '}
+                helperText={error || " "}
               />
             </Stack>
-            <Button type="submit" fullWidth variant="contained" size="large" sx={{ mt: 1 }} disabled={submitting}>
-              {submitting ? 'Signing in…' : 'Sign in'}
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              size="large"
+              sx={{ mt: 1 }}
+              disabled={submitting}
+            >
+              {submitting ? "Signing in…" : "Sign in"}
             </Button>
           </Box>
         )}
@@ -1061,23 +1852,34 @@ function CustomerActions({ customer, onStatusChange, onDelete }) {
   const { status } = customer;
   return (
     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
-      {status !== 'active' && (
+      {status !== "active" && (
         <Tooltip title="Reactivate">
-          <IconButton size="small" color="success" onClick={() => onStatusChange(customer.id, 'active')}>
+          <IconButton
+            size="small"
+            color="success"
+            onClick={() => onStatusChange(customer.id, "active")}
+          >
             <CheckCircleOutlineIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       )}
-      {status !== 'suspended' && (
+      {status !== "suspended" && (
         <Tooltip title="Suspend (temporary)">
-          <IconButton size="small" onClick={() => onStatusChange(customer.id, 'suspended')}>
+          <IconButton
+            size="small"
+            onClick={() => onStatusChange(customer.id, "suspended")}
+          >
             <PauseCircleOutlineIcon fontSize="small" />
           </IconButton>
         </Tooltip>
       )}
-      {status !== 'deactivated' && (
+      {status !== "deactivated" && (
         <Tooltip title="Deactivate (blocks sign-in)">
-          <IconButton size="small" color="error" onClick={() => onStatusChange(customer.id, 'deactivated')}>
+          <IconButton
+            size="small"
+            color="error"
+            onClick={() => onStatusChange(customer.id, "deactivated")}
+          >
             <BlockIcon fontSize="small" />
           </IconButton>
         </Tooltip>
@@ -1092,22 +1894,43 @@ function CustomerActions({ customer, onStatusChange, onDelete }) {
 }
 
 function CustomerCard({ customer, onStatusChange, onDelete }) {
-  const meta = CUSTOMER_STATUS_META[customer.status] || CUSTOMER_STATUS_META.active;
+  const meta =
+    CUSTOMER_STATUS_META[customer.status] || CUSTOMER_STATUS_META.active;
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+      <Stack
+        direction="row"
+        justifyContent="space-between"
+        alignItems="flex-start"
+      >
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 700 }} noWrap>{customer.name}</Typography>
-          <Typography variant="body2" color="text.secondary" noWrap>{customer.email || customer.phone}</Typography>
+          <Typography sx={{ fontWeight: 700 }} noWrap>
+            {customer.name}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" noWrap>
+            {customer.email || customer.phone}
+          </Typography>
           <Typography variant="caption" color="text.secondary">
             Joined {new Date(customer.createdAt).toLocaleDateString()}
           </Typography>
         </Box>
-        <Chip size="small" label={meta.label} sx={{ bgcolor: meta.bg, color: meta.color, fontWeight: 700, flexShrink: 0 }} />
+        <Chip
+          size="small"
+          label={meta.label}
+          sx={{
+            bgcolor: meta.bg,
+            color: meta.color,
+            fontWeight: 700,
+            flexShrink: 0,
+          }}
+        />
       </Stack>
       <Divider sx={{ my: 1.5 }} />
-      <CustomerActions customer={customer} onStatusChange={onStatusChange} onDelete={onDelete} />
+      <CustomerActions
+        customer={customer}
+        onStatusChange={onStatusChange}
+        onDelete={onDelete}
+      />
     </Paper>
   );
 }
-
