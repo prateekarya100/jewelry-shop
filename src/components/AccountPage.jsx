@@ -364,7 +364,7 @@ function AuthForm() {
             sx={{ mt: 2 }}
             disabled={submitting}
           >
-            {submitting ? "Sending code…" : "Send verification code"}
+            {submitting ? "Sending code…" : "Register"}
           </Button>
         </Box>
       )}
