@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Paper from "@mui/material/Paper";
@@ -90,14 +90,17 @@ export default function AccountPage({
 }
 
 function AccountTabs({ onCheckout }) {
-  const initialTab = useMemo(() => {
-    const t = parseInt(
-      new URLSearchParams(window.location.search).get("tab"),
-      10,
-    );
+  const location = useLocation();
+  const tabFromUrl = useMemo(() => {
+    const t = parseInt(new URLSearchParams(location.search).get("tab"), 10);
     return isNaN(t) ? 0 : Math.min(Math.max(t, 0), 3);
-  }, []);
-  const [tab, setTab] = useState(initialTab);
+  }, [location.search]);
+  const [tab, setTab] = useState(tabFromUrl);
+
+  // Sync when URL changes (e.g. menu click from /account to /account?tab=2)
+  useEffect(() => {
+    setTab(tabFromUrl);
+  }, [tabFromUrl]);
   return (
     <Box>
       <Tabs
