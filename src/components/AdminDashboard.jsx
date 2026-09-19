@@ -83,6 +83,22 @@ import paymentConfig from "../config/payment.js";
 import Logo from "./Logo.jsx";
 import PasswordField from "./PasswordField.jsx";
 
+const CLOUDINARY_CLOUD = "mypvheil";
+const CLOUDINARY_PRESET = "jewelry";
+
+async function uploadToCloudinary(file, resourceType = "image") {
+  const fd = new FormData();
+  fd.append("file", file);
+  fd.append("upload_preset", CLOUDINARY_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/${resourceType}/upload`,
+    { method: "POST", body: fd },
+  );
+  if (!res.ok) throw new Error("Upload failed");
+  const data = await res.json();
+  return data.secure_url;
+}
+
 const EMPTY_FORM = {
   title: "",
   category: "",
@@ -205,6 +221,18 @@ export default function AdminDashboard({ onExit }) {
   const [dateFilter, setDateFilter] = useState("all");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo] = useState("");
+
+  // Product list filters / sort / pagination / bulk
+  const [prodSearch, setProdSearch] = useState("");
+  const [prodCategory, setProdCategory] = useState("all");
+  const [prodStockFilter, setProdStockFilter] = useState("all"); // all | instock | lowstock | outofstock
+  const [prodSort, setProdSort] = useState("newest"); // newest | oldest | price_asc | price_desc | stock_asc | stock_desc | title_asc
+  const [prodPage, setProdPage] = useState(1);
+  const PROD_PAGE_SIZE = 10;
+  const [prodSelected, setProdSelected] = useState(new Set()); // ids of checked rows
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [quickStockId, setQuickStockId] = useState(null); // product id whose stock is being inline-edited
+  const [quickStockVal, setQuickStockVal] = useState("");
 
   useEffect(() => {
     if (isAdmin) refreshProducts();
@@ -397,6 +425,117 @@ export default function AdminDashboard({ onExit }) {
       return true;
     });
   }, [orders, dateFilter, customFrom, customTo]);
+
+  // Derived unique categories for the filter dropdown
+  const prodCategories = useMemo(() => {
+    const cats = [
+      ...new Set(products.map((p) => p.category).filter(Boolean)),
+    ].sort();
+    return cats;
+  }, [products]);
+
+  // Full filtered + sorted product list (before pagination)
+  const filteredProducts = useMemo(() => {
+    let list = [...products];
+    const q = prodSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          (p.category || "").toLowerCase().includes(q) ||
+          (p.material || "").toLowerCase().includes(q) ||
+          String(p.id).toLowerCase().includes(q),
+      );
+    }
+    if (prodCategory !== "all") {
+      list = list.filter((p) => p.category === prodCategory);
+    }
+    if (prodStockFilter === "instock")
+      list = list.filter((p) => (p.stock ?? 0) > 5);
+    else if (prodStockFilter === "lowstock")
+      list = list.filter((p) => (p.stock ?? 0) > 0 && (p.stock ?? 0) <= 5);
+    else if (prodStockFilter === "outofstock")
+      list = list.filter((p) => (p.stock ?? 0) === 0);
+
+    list.sort((a, b) => {
+      if (prodSort === "price_asc") return a.price - b.price;
+      if (prodSort === "price_desc") return b.price - a.price;
+      if (prodSort === "stock_asc") return (a.stock ?? 0) - (b.stock ?? 0);
+      if (prodSort === "stock_desc") return (b.stock ?? 0) - (a.stock ?? 0);
+      if (prodSort === "title_asc") return a.title.localeCompare(b.title);
+      if (prodSort === "oldest")
+        return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+      // newest (default)
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+    return list;
+  }, [products, prodSearch, prodCategory, prodStockFilter, prodSort]);
+
+  const prodTotalPages = Math.max(
+    1,
+    Math.ceil(filteredProducts.length / PROD_PAGE_SIZE),
+  );
+  const pagedProducts = filteredProducts.slice(
+    (prodPage - 1) * PROD_PAGE_SIZE,
+    prodPage * PROD_PAGE_SIZE,
+  );
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setProdPage(1);
+  }, [prodSearch, prodCategory, prodStockFilter, prodSort]);
+  // Clear selection when filters change
+  useEffect(() => {
+    setProdSelected(new Set());
+  }, [prodSearch, prodCategory, prodStockFilter]);
+
+  async function handleBulkDelete() {
+    if (prodSelected.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      await Promise.all(
+        [...prodSelected].map((id) =>
+          api(`/api/admin/products/${id}`, { token, method: "DELETE" }),
+        ),
+      );
+      setProdSelected(new Set());
+      await refreshProducts();
+      notify(`${prodSelected.size} product(s) deleted`);
+    } catch (err) {
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      notify(err.message);
+    } finally {
+      setBulkDeleting(false);
+    }
+  }
+
+  async function handleQuickStockSave(productId) {
+    const val = parseInt(quickStockVal, 10);
+    if (isNaN(val) || val < 0) {
+      setQuickStockId(null);
+      return;
+    }
+    try {
+      await api(`/api/admin/products/${productId}`, {
+        token,
+        method: "PUT",
+        body: { stock: val },
+      });
+      await refreshProducts();
+      notify("Stock updated");
+    } catch (err) {
+      if (err.status === 401) {
+        handleSessionExpired();
+        return;
+      }
+      notify(err.message);
+    } finally {
+      setQuickStockId(null);
+    }
+  }
 
   function openAddForm() {
     setEditingId(null);
@@ -768,16 +907,27 @@ export default function AdminDashboard({ onExit }) {
 
         {nav === "products" && productPage === "list" && (
           <Box>
+            {/* ── Header ── */}
             <Stack
               direction={{ xs: "column", sm: "row" }}
               alignItems={{ xs: "stretch", sm: "center" }}
               justifyContent="space-between"
               spacing={1.5}
-              sx={{ mb: 3 }}
+              sx={{ mb: 2 }}
             >
-              <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 } }}>
-                Products
-              </Typography>
+              <Box>
+                <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 } }}>
+                  Products
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {filteredProducts.length} of {products.length} products
+                  {prodSearch ||
+                  prodCategory !== "all" ||
+                  prodStockFilter !== "all"
+                    ? " (filtered)"
+                    : ""}
+                </Typography>
+              </Box>
               {(isSuperAdmin || perms.edit_products) && (
                 <Button
                   variant="contained"
@@ -789,14 +939,188 @@ export default function AdminDashboard({ onExit }) {
               )}
             </Stack>
 
-            {isMobile ? (
+            {/* ── Search + Filters bar ── */}
+            <Paper variant="outlined" sx={{ p: 1.5, mb: 2 }}>
               <Stack spacing={1.25}>
-                {products.map((p) => (
+                <TextField
+                  size="small"
+                  placeholder="Search by title, category, material, ID…"
+                  value={prodSearch}
+                  onChange={(e) => setProdSearch(e.target.value)}
+                  InputProps={{
+                    startAdornment: (
+                      <Box
+                        component="span"
+                        sx={{ mr: 1, color: "text.secondary", display: "flex" }}
+                      >
+                        <svg
+                          width="16"
+                          height="16"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                        >
+                          <circle cx="11" cy="11" r="8" />
+                          <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                        </svg>
+                      </Box>
+                    ),
+                    endAdornment: prodSearch ? (
+                      <IconButton
+                        size="small"
+                        onClick={() => setProdSearch("")}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                        >
+                          <line x1="18" y1="6" x2="6" y2="18" />
+                          <line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </IconButton>
+                    ) : null,
+                  }}
+                  fullWidth
+                />
+                <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                  <FormControl size="small" sx={{ minWidth: 130 }}>
+                    <InputLabel>Category</InputLabel>
+                    <Select
+                      label="Category"
+                      value={prodCategory}
+                      onChange={(e) => setProdCategory(e.target.value)}
+                    >
+                      <MenuItem value="all">All categories</MenuItem>
+                      {prodCategories.map((c) => (
+                        <MenuItem key={c} value={c}>
+                          {c}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 140 }}>
+                    <InputLabel>Stock</InputLabel>
+                    <Select
+                      label="Stock"
+                      value={prodStockFilter}
+                      onChange={(e) => setProdStockFilter(e.target.value)}
+                    >
+                      <MenuItem value="all">All stock</MenuItem>
+                      <MenuItem value="instock">In stock (&gt;5)</MenuItem>
+                      <MenuItem value="lowstock">Low stock (1–5)</MenuItem>
+                      <MenuItem value="outofstock">Out of stock</MenuItem>
+                    </Select>
+                  </FormControl>
+                  <FormControl size="small" sx={{ minWidth: 155 }}>
+                    <InputLabel>Sort by</InputLabel>
+                    <Select
+                      label="Sort by"
+                      value={prodSort}
+                      onChange={(e) => setProdSort(e.target.value)}
+                    >
+                      <MenuItem value="newest">Newest first</MenuItem>
+                      <MenuItem value="oldest">Oldest first</MenuItem>
+                      <MenuItem value="title_asc">Title A→Z</MenuItem>
+                      <MenuItem value="price_asc">Price: low→high</MenuItem>
+                      <MenuItem value="price_desc">Price: high→low</MenuItem>
+                      <MenuItem value="stock_asc">Stock: low→high</MenuItem>
+                      <MenuItem value="stock_desc">Stock: high→low</MenuItem>
+                    </Select>
+                  </FormControl>
+                  {(prodSearch ||
+                    prodCategory !== "all" ||
+                    prodStockFilter !== "all") && (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="inherit"
+                      onClick={() => {
+                        setProdSearch("");
+                        setProdCategory("all");
+                        setProdStockFilter("all");
+                      }}
+                      sx={{ borderColor: "divider", color: "text.secondary" }}
+                    >
+                      Clear filters
+                    </Button>
+                  )}
+                </Stack>
+              </Stack>
+            </Paper>
+
+            {/* ── Bulk action bar ── */}
+            {(isSuperAdmin || perms.edit_products) && prodSelected.size > 0 && (
+              <Paper
+                variant="outlined"
+                sx={{
+                  p: 1.25,
+                  mb: 1.5,
+                  bgcolor: "primary.main",
+                  borderColor: "primary.main",
+                  borderRadius: 1.5,
+                }}
+              >
+                <Stack direction="row" alignItems="center" spacing={1.5}>
+                  <Typography
+                    sx={{ color: "#fff", fontWeight: 700, fontSize: 14 }}
+                  >
+                    {prodSelected.size} selected
+                  </Typography>
+                  <Button
+                    size="small"
+                    variant="contained"
+                    color="error"
+                    disabled={bulkDeleting}
+                    onClick={handleBulkDelete}
+                    sx={{ fontWeight: 700 }}
+                  >
+                    {bulkDeleting ? "Deleting…" : `Delete ${prodSelected.size}`}
+                  </Button>
+                  <Button
+                    size="small"
+                    sx={{ color: "rgba(255,255,255,0.8)" }}
+                    onClick={() => setProdSelected(new Set())}
+                  >
+                    Deselect all
+                  </Button>
+                </Stack>
+              </Paper>
+            )}
+
+            {filteredProducts.length === 0 ? (
+              <Paper variant="outlined" sx={{ p: 4, textAlign: "center" }}>
+                <Typography color="text.secondary">
+                  {products.length === 0
+                    ? "No products yet. Add your first product."
+                    : "No products match your filters."}
+                </Typography>
+              </Paper>
+            ) : isMobile ? (
+              /* ── Mobile card list ── */
+              <Stack spacing={1.25}>
+                {pagedProducts.map((p) => (
                   <Paper
                     key={p.id}
                     variant="outlined"
                     sx={{ p: 1.5, display: "flex", gap: 1.5 }}
                   >
+                    {(isSuperAdmin || perms.edit_products) && (
+                      <Checkbox
+                        size="small"
+                        checked={prodSelected.has(p.id)}
+                        onChange={(e) => {
+                          const s = new Set(prodSelected);
+                          e.target.checked ? s.add(p.id) : s.delete(p.id);
+                          setProdSelected(s);
+                        }}
+                        sx={{ alignSelf: "flex-start", mt: -0.5 }}
+                      />
+                    )}
                     <Box
                       component="img"
                       src={p.images?.[0]}
@@ -821,8 +1145,68 @@ export default function AdminDashboard({ onExit }) {
                         color="text.secondary"
                         display="block"
                       >
-                        {p.category} · Stock: {p.stock ?? "—"}
+                        {p.category} · ID: {p.id}
                       </Typography>
+                      {/* Inline stock editor */}
+                      {quickStockId === p.id ? (
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          alignItems="center"
+                          sx={{ mt: 0.5 }}
+                        >
+                          <TextField
+                            size="small"
+                            type="number"
+                            value={quickStockVal}
+                            onChange={(e) => setQuickStockVal(e.target.value)}
+                            sx={{ width: 80 }}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleQuickStockSave(p.id);
+                              if (e.key === "Escape") setQuickStockId(null);
+                            }}
+                          />
+                          <Button
+                            size="small"
+                            variant="contained"
+                            onClick={() => handleQuickStockSave(p.id)}
+                          >
+                            Save
+                          </Button>
+                          <Button
+                            size="small"
+                            onClick={() => setQuickStockId(null)}
+                          >
+                            Cancel
+                          </Button>
+                        </Stack>
+                      ) : (
+                        <Tooltip title="Click to update stock">
+                          <Typography
+                            variant="caption"
+                            sx={{
+                              display: "inline-block",
+                              mt: 0.5,
+                              cursor: "pointer",
+                              fontWeight: 700,
+                              color:
+                                (p.stock ?? 0) === 0
+                                  ? "error.main"
+                                  : (p.stock ?? 0) <= 5
+                                    ? "warning.main"
+                                    : "success.main",
+                              borderBottom: "1px dashed currentColor",
+                            }}
+                            onClick={() => {
+                              setQuickStockId(p.id);
+                              setQuickStockVal(String(p.stock ?? 0));
+                            }}
+                          >
+                            Stock: {p.stock ?? 0}
+                          </Typography>
+                        </Tooltip>
+                      )}
                       <Stack
                         direction="row"
                         alignItems="center"
@@ -869,10 +1253,35 @@ export default function AdminDashboard({ onExit }) {
                 ))}
               </Stack>
             ) : (
+              /* ── Desktop table ── */
               <Paper variant="outlined" sx={{ overflowX: "auto" }}>
                 <Table size="small">
                   <TableHead>
                     <TableRow>
+                      {(isSuperAdmin || perms.edit_products) && (
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            size="small"
+                            indeterminate={
+                              prodSelected.size > 0 &&
+                              prodSelected.size < pagedProducts.length
+                            }
+                            checked={
+                              pagedProducts.length > 0 &&
+                              pagedProducts.every((p) => prodSelected.has(p.id))
+                            }
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setProdSelected(
+                                  new Set(pagedProducts.map((p) => p.id)),
+                                );
+                              } else {
+                                setProdSelected(new Set());
+                              }
+                            }}
+                          />
+                        </TableCell>
+                      )}
                       <TableCell />
                       <TableCell>Title</TableCell>
                       <TableCell>Category</TableCell>
@@ -883,8 +1292,28 @@ export default function AdminDashboard({ onExit }) {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {products.map((p) => (
-                      <TableRow key={p.id} hover>
+                    {pagedProducts.map((p) => (
+                      <TableRow
+                        key={p.id}
+                        hover
+                        selected={prodSelected.has(p.id)}
+                        sx={{
+                          "&.Mui-selected": { bgcolor: "action.selected" },
+                        }}
+                      >
+                        {(isSuperAdmin || perms.edit_products) && (
+                          <TableCell padding="checkbox">
+                            <Checkbox
+                              size="small"
+                              checked={prodSelected.has(p.id)}
+                              onChange={(e) => {
+                                const s = new Set(prodSelected);
+                                e.target.checked ? s.add(p.id) : s.delete(p.id);
+                                setProdSelected(s);
+                              }}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell sx={{ py: 0.75 }}>
                           <Box
                             component="img"
@@ -900,7 +1329,16 @@ export default function AdminDashboard({ onExit }) {
                           />
                         </TableCell>
                         <TableCell sx={{ fontWeight: 600 }}>
-                          {p.title}
+                          <Box>
+                            {p.title}
+                            <Typography
+                              variant="caption"
+                              display="block"
+                              color="text.secondary"
+                            >
+                              ID: {p.id}
+                            </Typography>
+                          </Box>
                         </TableCell>
                         <TableCell>
                           <Chip
@@ -934,20 +1372,94 @@ export default function AdminDashboard({ onExit }) {
                           )}
                         </TableCell>
                         <TableCell align="right">
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 700,
-                              color:
-                                (p.stock ?? 0) === 0
-                                  ? "error.main"
-                                  : (p.stock ?? 0) <= 5
-                                    ? "secondary.dark"
-                                    : "text.primary",
-                            }}
-                          >
-                            {p.stock ?? "—"}
-                          </Typography>
+                          {quickStockId === p.id ? (
+                            <Stack
+                              direction="row"
+                              spacing={0.5}
+                              alignItems="center"
+                              justifyContent="flex-end"
+                            >
+                              <TextField
+                                size="small"
+                                type="number"
+                                value={quickStockVal}
+                                onChange={(e) =>
+                                  setQuickStockVal(e.target.value)
+                                }
+                                sx={{ width: 70 }}
+                                autoFocus
+                                onKeyDown={(e) => {
+                                  if (e.key === "Enter")
+                                    handleQuickStockSave(p.id);
+                                  if (e.key === "Escape") setQuickStockId(null);
+                                }}
+                              />
+                              <IconButton
+                                size="small"
+                                color="primary"
+                                onClick={() => handleQuickStockSave(p.id)}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                >
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                onClick={() => setQuickStockId(null)}
+                              >
+                                <svg
+                                  width="14"
+                                  height="14"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2.5"
+                                >
+                                  <line x1="18" y1="6" x2="6" y2="18" />
+                                  <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                              </IconButton>
+                            </Stack>
+                          ) : (
+                            <Tooltip title="Click to update stock quickly">
+                              <Typography
+                                variant="body2"
+                                onClick={() => {
+                                  if (isSuperAdmin || perms.edit_products) {
+                                    setQuickStockId(p.id);
+                                    setQuickStockVal(String(p.stock ?? 0));
+                                  }
+                                }}
+                                sx={{
+                                  fontWeight: 700,
+                                  cursor:
+                                    isSuperAdmin || perms.edit_products
+                                      ? "pointer"
+                                      : "default",
+                                  color:
+                                    (p.stock ?? 0) === 0
+                                      ? "error.main"
+                                      : (p.stock ?? 0) <= 5
+                                        ? "warning.main"
+                                        : "text.primary",
+                                  borderBottom:
+                                    isSuperAdmin || perms.edit_products
+                                      ? "1px dashed currentColor"
+                                      : "none",
+                                  display: "inline-block",
+                                }}
+                              >
+                                {p.stock ?? "—"}
+                              </Typography>
+                            </Tooltip>
+                          )}
                         </TableCell>
                         <TableCell align="right">
                           {(isSuperAdmin || perms.edit_products) && (
@@ -973,6 +1485,97 @@ export default function AdminDashboard({ onExit }) {
                   </TableBody>
                 </Table>
               </Paper>
+            )}
+
+            {/* ── Pagination ── */}
+            {prodTotalPages > 1 && (
+              <Stack
+                direction="row"
+                alignItems="center"
+                justifyContent="space-between"
+                sx={{ mt: 2 }}
+              >
+                <Typography variant="caption" color="text.secondary">
+                  Page {prodPage} of {prodTotalPages} · showing{" "}
+                  {(prodPage - 1) * PROD_PAGE_SIZE + 1}–
+                  {Math.min(prodPage * PROD_PAGE_SIZE, filteredProducts.length)}{" "}
+                  of {filteredProducts.length}
+                </Typography>
+                <Stack direction="row" spacing={0.5}>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={prodPage === 1}
+                    onClick={() => setProdPage(1)}
+                    sx={{ minWidth: 32, px: 0.5 }}
+                  >
+                    «
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={prodPage === 1}
+                    onClick={() => setProdPage((p) => p - 1)}
+                    sx={{ minWidth: 32, px: 0.5 }}
+                  >
+                    ‹
+                  </Button>
+                  {Array.from({ length: prodTotalPages }, (_, i) => i + 1)
+                    .filter(
+                      (n) =>
+                        n === 1 ||
+                        n === prodTotalPages ||
+                        Math.abs(n - prodPage) <= 2,
+                    )
+                    .reduce((acc, n, idx, arr) => {
+                      if (idx > 0 && n - arr[idx - 1] > 1) acc.push("…");
+                      acc.push(n);
+                      return acc;
+                    }, [])
+                    .map((item, idx) =>
+                      item === "…" ? (
+                        <Typography
+                          key={`ellipsis-${idx}`}
+                          sx={{
+                            px: 0.5,
+                            alignSelf: "center",
+                            color: "text.secondary",
+                          }}
+                        >
+                          …
+                        </Typography>
+                      ) : (
+                        <Button
+                          key={item}
+                          size="small"
+                          variant={item === prodPage ? "contained" : "outlined"}
+                          onClick={() => setProdPage(item)}
+                          sx={{ minWidth: 32, px: 0.5 }}
+                        >
+                          {item}
+                        </Button>
+                      ),
+                    )}
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={prodPage === prodTotalPages}
+                    onClick={() => setProdPage((p) => p + 1)}
+                    sx={{ minWidth: 32, px: 0.5 }}
+                  >
+                    ›
+                  </Button>
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    disabled={prodPage === prodTotalPages}
+                    onClick={() => setProdPage(prodTotalPages)}
+                    sx={{ minWidth: 32, px: 0.5 }}
+                  >
+                    »
+                  </Button>
+                </Stack>
+              </Stack>
             )}
           </Box>
         )}
@@ -1078,26 +1681,17 @@ export default function AdminDashboard({ onExit }) {
                     />
                   </Grid>
                   <Grid size={12}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Image URLs (comma separated)"
-                      placeholder="https://…, https://…"
+                    <CloudinaryImageUpload
                       value={form.images}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, images: e.target.value }))
+                      onChange={(val) =>
+                        setForm((f) => ({ ...f, images: val }))
                       }
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 8 }}>
-                    <TextField
-                      fullWidth
-                      size="small"
-                      label="Demo video URL (.mp4 or YouTube)"
+                    <CloudinaryVideoUpload
                       value={form.video}
-                      onChange={(e) =>
-                        setForm((f) => ({ ...f, video: e.target.value }))
-                      }
+                      onChange={(val) => setForm((f) => ({ ...f, video: val }))}
                     />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
@@ -1906,6 +2500,175 @@ function AdminLoginPage({
           ← Back to store
         </Button>
       </Paper>
+    </Box>
+  );
+}
+
+function CloudinaryImageUpload({ value, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+  const urls = value
+    ? value
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+    : [];
+
+  async function handleFiles(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    setUploading(true);
+    setError("");
+    try {
+      const uploaded = await Promise.all(
+        files.map((f) => uploadToCloudinary(f, "image")),
+      );
+      const merged = [...urls, ...uploaded].join(", ");
+      onChange(merged);
+    } catch {
+      setError("Upload failed. Try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  function removeUrl(idx) {
+    const next = urls.filter((_, i) => i !== idx);
+    onChange(next.join(", "));
+  }
+
+  return (
+    <Box>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+        <Typography
+          variant="body2"
+          sx={{ fontWeight: 600, color: "text.secondary" }}
+        >
+          Product Images
+        </Typography>
+        <Button
+          size="small"
+          variant="outlined"
+          component="label"
+          disabled={uploading}
+          sx={{ fontSize: 12 }}
+        >
+          {uploading ? "Uploading…" : "+ Upload images"}
+          <input
+            type="file"
+            hidden
+            multiple
+            accept="image/*"
+            onChange={handleFiles}
+          />
+        </Button>
+      </Stack>
+      {error && (
+        <Typography variant="caption" color="error.main">
+          {error}
+        </Typography>
+      )}
+      {urls.length > 0 && (
+        <Stack direction="row" flexWrap="wrap" gap={1} sx={{ mb: 1 }}>
+          {urls.map((url, idx) => (
+            <Box key={idx} sx={{ position: "relative" }}>
+              <Box
+                component="img"
+                src={url}
+                alt=""
+                sx={{
+                  width: 72,
+                  height: 72,
+                  objectFit: "cover",
+                  borderRadius: 1.5,
+                  border: "1px solid",
+                  borderColor: "divider",
+                }}
+              />
+              <IconButton
+                size="small"
+                onClick={() => removeUrl(idx)}
+                sx={{
+                  position: "absolute",
+                  top: -8,
+                  right: -8,
+                  bgcolor: "background.paper",
+                  border: "1px solid",
+                  borderColor: "divider",
+                  width: 20,
+                  height: 20,
+                }}
+              >
+                <Typography sx={{ fontSize: 11, lineHeight: 1 }}>×</Typography>
+              </IconButton>
+            </Box>
+          ))}
+        </Stack>
+      )}
+      <TextField
+        fullWidth
+        size="small"
+        label="Or paste image URLs (comma separated)"
+        placeholder="https://…, https://…"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      />
+    </Box>
+  );
+}
+
+function CloudinaryVideoUpload({ value, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleFile(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setUploading(true);
+    setError("");
+    try {
+      const url = await uploadToCloudinary(file, "video");
+      onChange(url);
+    } catch {
+      setError("Upload failed. Try again.");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
+
+  return (
+    <Box>
+      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 0.5 }}>
+        <TextField
+          fullWidth
+          size="small"
+          label="Demo video URL (.mp4 or YouTube)"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+        />
+        <Button
+          size="small"
+          variant="outlined"
+          component="label"
+          disabled={uploading}
+          sx={{ fontSize: 12, whiteSpace: "nowrap", flexShrink: 0 }}
+        >
+          {uploading ? "Uploading…" : "↑ Upload"}
+          <input type="file" hidden accept="video/*" onChange={handleFile} />
+        </Button>
+      </Stack>
+      {error && (
+        <Typography variant="caption" color="error.main">
+          {error}
+        </Typography>
+      )}
+      {value && value.startsWith("https://res.cloudinary.com") && (
+        <Typography variant="caption" color="success.main">
+          ✓ Video uploaded to Cloudinary
+        </Typography>
+      )}
     </Box>
   );
 }
