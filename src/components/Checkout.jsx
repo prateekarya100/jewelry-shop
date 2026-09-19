@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
@@ -16,10 +16,18 @@ import RadioGroup from "@mui/material/RadioGroup";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import Radio from "@mui/material/Radio";
 import Fade from "@mui/material/Fade";
+import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
+import Collapse from "@mui/material/Collapse";
+import CircularProgress from "@mui/material/CircularProgress";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import QrCode2OutlinedIcon from "@mui/icons-material/QrCode2Outlined";
 import CreditCardOutlinedIcon from "@mui/icons-material/CreditCardOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import StarIcon from "@mui/icons-material/Star";
 import { useStore } from "../context/StoreContext.jsx";
 import { useCustomerAuth } from "../context/CustomerAuthContext.jsx";
 import { formatINR } from "../utils/storage.js";
@@ -27,33 +35,44 @@ import paymentConfig from "../config/payment.js";
 import Header from "./Header.jsx";
 import Footer from "./Footer.jsx";
 
-const EMPTY_CUSTOMER = {
+const STEPS = ["Details", "Payment", "Confirmed"];
+const EMPTY_ADDR_FORM = {
+  label: "",
   name: "",
   phone: "",
-  email: "",
   address: "",
   city: "",
   state: "",
   pincode: "",
+  is_default: false,
 };
-const STEPS = ["Details", "Payment", "Confirmed"];
+
+async function addrApi(path, { token, method = "GET", body } = {}) {
+  const res = await fetch(`${paymentConfig.backendBaseUrl}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
 
 export default function CheckoutPage({ categories, onSelectCategory }) {
   const navigate = useNavigate();
   const { isLoggedIn, customer: authCustomer } = useCustomerAuth();
   const { cartDetailed, cartSubtotal, placeOrder } = useStore();
 
-  // Redirect if not logged in
-  // Redirect if not logged in
-  React.useEffect(() => {
-    if (!isLoggedIn) {
-      navigate("/account", { replace: true });
-    }
+  useEffect(() => {
+    if (!isLoggedIn) navigate("/account", { replace: true });
   }, [isLoggedIn, navigate]);
 
   if (!isLoggedIn) return null;
 
-  // Redirect if cart is empty
   if (cartDetailed.length === 0) {
     return (
       <Box
@@ -118,7 +137,10 @@ function CheckoutForm({
   placeOrder,
   onDone,
 }) {
+  const { token } = useCustomerAuth();
   const [step, setStep] = useState(0);
+
+  // The customer object that goes into the order
   const [customer, setCustomer] = useState({
     name: authCustomer?.name || "",
     phone: authCustomer?.phone || "",
@@ -134,11 +156,155 @@ function CheckoutForm({
   const [razorLoading, setRazorLoading] = useState(false);
   const [paymentError, setPaymentError] = useState("");
 
+  // ── Address book state ──────────────────────────────────────────────────────
+  const [addresses, setAddresses] = useState(null); // null = loading
+  const [selectedId, setSelectedId] = useState(null);
+  // 'pick' | 'add' | 'edit'
+  const [addrMode, setAddrMode] = useState("pick");
+  const [addrForm, setAddrForm] = useState(EMPTY_ADDR_FORM);
+  const [editingId, setEditingId] = useState(null);
+  const [addrSaving, setAddrSaving] = useState(false);
+  const [addrError, setAddrError] = useState("");
+
+  const loadAddresses = useCallback(async () => {
+    if (!token || !paymentConfig.backendBaseUrl) {
+      setAddresses([]);
+      return;
+    }
+    try {
+      const data = await addrApi("/api/auth/addresses", { token });
+      setAddresses(data || []);
+      if (data && data.length > 0) {
+        const def = data.find((a) => a.is_default) || data[0];
+        setSelectedId(def.id);
+        fillFromAddr(def);
+        setAddrMode("pick");
+      } else {
+        setAddrMode("add");
+      }
+    } catch {
+      setAddresses([]);
+      setAddrMode("add");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  useEffect(() => {
+    loadAddresses();
+  }, [loadAddresses]);
+
+  function fillFromAddr(addr) {
+    setCustomer((c) => ({
+      ...c,
+      name: addr.name,
+      phone: addr.phone,
+      address: addr.address,
+      city: addr.city,
+      state: addr.state || "",
+      pincode: addr.pincode,
+    }));
+  }
+
+  function pickAddr(addr) {
+    setSelectedId(addr.id);
+    fillFromAddr(addr);
+    setAddrMode("pick");
+    setErrors({});
+  }
+
+  function startAdd() {
+    setEditingId(null);
+    setAddrForm({ ...EMPTY_ADDR_FORM, is_default: addresses?.length === 0 });
+    setAddrError("");
+    setAddrMode("add");
+  }
+
+  function startEdit(addr) {
+    setEditingId(addr.id);
+    setAddrForm({
+      label: addr.label || "",
+      name: addr.name,
+      phone: addr.phone,
+      address: addr.address,
+      city: addr.city,
+      state: addr.state || "",
+      pincode: addr.pincode,
+      is_default: addr.is_default,
+    });
+    setAddrError("");
+    setAddrMode("edit");
+  }
+
+  async function saveAddr() {
+    const { name, phone, address, city, pincode } = addrForm;
+    if (
+      !name.trim() ||
+      !phone.trim() ||
+      !address.trim() ||
+      !city.trim() ||
+      !pincode.trim()
+    ) {
+      setAddrError("Name, phone, address, city and pincode are required.");
+      return;
+    }
+    setAddrSaving(true);
+    setAddrError("");
+    try {
+      let saved;
+      if (addrMode === "edit" && editingId) {
+        saved = await addrApi(`/api/auth/addresses/${editingId}`, {
+          token,
+          method: "PUT",
+          body: addrForm,
+        });
+      } else {
+        saved = await addrApi("/api/auth/addresses", {
+          token,
+          method: "POST",
+          body: addrForm,
+        });
+      }
+      await loadAddresses();
+      // Select the newly saved address
+      if (saved) {
+        setSelectedId(saved.id);
+        fillFromAddr(saved);
+      }
+      setAddrMode("pick");
+    } catch (err) {
+      setAddrError(err.message);
+    } finally {
+      setAddrSaving(false);
+    }
+  }
+
+  async function deleteAddr(id) {
+    try {
+      await addrApi(`/api/auth/addresses/${id}`, { token, method: "DELETE" });
+      await loadAddresses();
+    } catch {
+      /* silently ignore */
+    }
+  }
+
+  async function setDefault(id) {
+    try {
+      await addrApi(`/api/auth/addresses/${id}/default`, {
+        token,
+        method: "PUT",
+      });
+      await loadAddresses();
+    } catch {
+      /* silently ignore */
+    }
+  }
+
+  // ── Validation & order flow ─────────────────────────────────────────────────
   function validateDetails() {
     const req = ["name", "phone", "address", "city", "pincode"];
     const next = {};
     req.forEach((k) => {
-      if (!customer[k].trim()) next[k] = "Required";
+      if (!customer[k]?.trim()) next[k] = "Required";
     });
     if (customer.phone && !/^\d{10}$/.test(customer.phone.trim()))
       next.phone = "10-digit number";
@@ -150,6 +316,10 @@ function CheckoutForm({
 
   function goToPayment(e) {
     e.preventDefault();
+    if (addrMode !== "pick") {
+      setAddrError("Save or cancel the address form first.");
+      return;
+    }
     if (validateDetails()) setStep(1);
   }
 
@@ -162,17 +332,13 @@ function CheckoutForm({
   async function payWithRazorpay(restrictToUpi) {
     if (!paymentConfig.razorpayKeyId) return;
     if (!window.Razorpay) {
-      alert(
-        "Razorpay script did not load. Check your connection and try again.",
-      );
+      alert("Razorpay script did not load.");
       return;
     }
     setPaymentError("");
     setRazorLoading(true);
-
-    let orderId;
-    let amountForCheckout = Math.round(cartSubtotal * 100);
-
+    let orderId,
+      amountForCheckout = Math.round(cartSubtotal * 100);
     if (paymentConfig.backendBaseUrl) {
       try {
         const res = await fetch(
@@ -189,18 +355,16 @@ function CheckoutForm({
             }),
           },
         );
-        if (!res.ok) throw new Error("create-order request failed");
+        if (!res.ok) throw new Error("create-order failed");
         const data = await res.json();
         orderId = data.orderId;
         amountForCheckout = data.amount;
       } catch (err) {
-        console.error(err);
         setRazorLoading(false);
-        setPaymentError("Couldn't reach the payment server. Please try again.");
+        setPaymentError("Couldn't reach payment server. Try again.");
         return;
       }
     }
-
     const options = {
       key: paymentConfig.razorpayKeyId,
       amount: amountForCheckout,
@@ -213,10 +377,10 @@ function CheckoutForm({
         contact: customer.phone,
       },
       theme: { color: "#7c3f34" },
-      handler: async function (response) {
+      handler: async (response) => {
         if (paymentConfig.backendBaseUrl) {
           try {
-            const verifyRes = await fetch(
+            const v = await fetch(
               `${paymentConfig.backendBaseUrl}/api/verify-payment`,
               {
                 method: "POST",
@@ -228,18 +392,16 @@ function CheckoutForm({
                 }),
               },
             );
-            const { verified } = await verifyRes.json();
+            const { verified } = await v.json();
             setRazorLoading(false);
             if (!verified) {
-              setPaymentError(
-                "Payment could not be verified. Contact support before paying again.",
-              );
+              setPaymentError("Payment verification failed.");
               return;
             }
-          } catch (err) {
+          } catch {
             setRazorLoading(false);
             setPaymentError(
-              "Verification failed. Contact support with payment ID: " +
+              "Verification failed. Save payment ID: " +
                 response.razorpay_payment_id,
             );
             return;
@@ -255,7 +417,7 @@ function CheckoutForm({
       modal: { ondismiss: () => setRazorLoading(false) },
     };
     if (orderId) options.order_id = orderId;
-    if (restrictToUpi) {
+    if (restrictToUpi)
       options.config = {
         display: {
           hide: [
@@ -267,9 +429,7 @@ function CheckoutForm({
           ],
         },
       };
-    }
-    const rzp = new window.Razorpay(options);
-    rzp.open();
+    new window.Razorpay(options).open();
   }
 
   const paymentOptions = [
@@ -282,12 +442,12 @@ function CheckoutForm({
     },
   ];
 
+  // ── Render ──────────────────────────────────────────────────────────────────
   return (
     <Box>
       <Typography variant="h4" sx={{ fontSize: 26, mb: 3 }}>
         Checkout
       </Typography>
-
       <Stepper activeStep={step} sx={{ mb: 4 }} alternativeLabel>
         {STEPS.map((label) => (
           <Step key={label}>
@@ -296,101 +456,335 @@ function CheckoutForm({
         ))}
       </Stepper>
 
+      {/* ── Step 0: Details ── */}
       {step === 0 && (
         <Box component="form" onSubmit={goToPayment}>
           <Typography variant="h6" sx={{ mb: 2 }}>
             Where should we send it?
           </Typography>
-          <Grid container spacing={1.75} sx={{ mb: 3 }}>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Full name"
-                value={customer.name}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, name: e.target.value }))
-                }
-                error={!!errors.name}
-                helperText={errors.name}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Phone"
-                value={customer.phone}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, phone: e.target.value }))
-                }
-                error={!!errors.phone}
-                helperText={errors.phone}
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Email (optional)"
-                type="email"
-                value={customer.email}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, email: e.target.value }))
-                }
-              />
-            </Grid>
-            <Grid size={12}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Address"
-                value={customer.address}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, address: e.target.value }))
-                }
-                error={!!errors.address}
-                helperText={errors.address}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="City"
-                value={customer.city}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, city: e.target.value }))
-                }
-                error={!!errors.city}
-                helperText={errors.city}
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="State"
-                value={customer.state}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, state: e.target.value }))
-                }
-              />
-            </Grid>
-            <Grid size={{ xs: 12, sm: 4 }}>
-              <TextField
-                fullWidth
-                size="small"
-                label="Pincode"
-                value={customer.pincode}
-                onChange={(e) =>
-                  setCustomer((c) => ({ ...c, pincode: e.target.value }))
-                }
-                error={!!errors.pincode}
-                helperText={errors.pincode}
-              />
-            </Grid>
-          </Grid>
+
+          {/* Loading */}
+          {addresses === null && (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 3 }}>
+              <CircularProgress size={28} />
+            </Box>
+          )}
+
+          {addresses !== null && (
+            <>
+              {/* ── Saved address list ── */}
+              {addresses.length > 0 && addrMode === "pick" && (
+                <Stack spacing={1} sx={{ mb: 2 }}>
+                  {addresses.map((addr) => (
+                    <Paper
+                      key={addr.id}
+                      variant="outlined"
+                      onClick={() => pickAddr(addr)}
+                      sx={{
+                        p: 1.5,
+                        cursor: "pointer",
+                        borderColor:
+                          selectedId === addr.id ? "primary.main" : "divider",
+                        borderWidth: selectedId === addr.id ? 2 : 1,
+                        transition: "border-color 0.15s",
+                      }}
+                    >
+                      <Stack
+                        direction="row"
+                        alignItems="flex-start"
+                        spacing={1.25}
+                      >
+                        <Radio
+                          checked={selectedId === addr.id}
+                          size="small"
+                          sx={{ mt: -0.25, flexShrink: 0 }}
+                          readOnly
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                        <Box sx={{ flex: 1, minWidth: 0 }}>
+                          <Stack
+                            direction="row"
+                            alignItems="center"
+                            spacing={0.75}
+                            flexWrap="wrap"
+                            sx={{ mb: 0.25 }}
+                          >
+                            {addr.label && (
+                              <Chip
+                                label={addr.label}
+                                size="small"
+                                sx={{ fontSize: 11, fontWeight: 700 }}
+                              />
+                            )}
+                            {addr.is_default && (
+                              <Chip
+                                icon={
+                                  <StarIcon
+                                    sx={{ fontSize: "12px !important" }}
+                                  />
+                                }
+                                label="Default"
+                                size="small"
+                                color="primary"
+                                sx={{ fontSize: 11, fontWeight: 700 }}
+                              />
+                            )}
+                          </Stack>
+                          <Typography sx={{ fontWeight: 700, fontSize: 14 }}>
+                            {addr.name} · {addr.phone}
+                          </Typography>
+                          <Typography
+                            variant="caption"
+                            color="text.secondary"
+                            sx={{ display: "block" }}
+                          >
+                            {addr.address}, {addr.city}
+                            {addr.state ? `, ${addr.state}` : ""} —{" "}
+                            {addr.pincode}
+                          </Typography>
+                          {selectedId === addr.id && !addr.is_default && (
+                            <Button
+                              size="small"
+                              sx={{
+                                mt: 0.5,
+                                p: 0,
+                                fontWeight: 600,
+                                fontSize: 12,
+                                color: "text.secondary",
+                                minWidth: 0,
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDefault(addr.id);
+                              }}
+                            >
+                              Set as default
+                            </Button>
+                          )}
+                        </Box>
+                        <Stack
+                          direction="row"
+                          sx={{ flexShrink: 0 }}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <IconButton
+                            size="small"
+                            onClick={() => startEdit(addr)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </IconButton>
+                          <IconButton
+                            size="small"
+                            color="error"
+                            onClick={() => deleteAddr(addr.id)}
+                          >
+                            <DeleteOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        </Stack>
+                      </Stack>
+                    </Paper>
+                  ))}
+
+                  <Button
+                    size="small"
+                    startIcon={<AddIcon />}
+                    onClick={startAdd}
+                    sx={{
+                      alignSelf: "flex-start",
+                      color: "text.secondary",
+                      pl: 0,
+                    }}
+                  >
+                    Add new address
+                  </Button>
+                </Stack>
+              )}
+
+              {/* ── Inline add / edit form ── */}
+              <Collapse in={addrMode === "add" || addrMode === "edit"}>
+                <Paper
+                  variant="outlined"
+                  sx={{
+                    p: 2,
+                    mb: 2,
+                    borderColor: "primary.main",
+                    borderWidth: 1.5,
+                  }}
+                >
+                  <Typography
+                    variant="subtitle2"
+                    sx={{ mb: 1.5, fontWeight: 700 }}
+                  >
+                    {addrMode === "edit" ? "Edit address" : "New address"}
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Label (e.g. Home / Office)"
+                        value={addrForm.label}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({ ...f, label: e.target.value }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Full name *"
+                        value={addrForm.name}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({ ...f, name: e.target.value }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 6 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Phone *"
+                        value={addrForm.phone}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({ ...f, phone: e.target.value }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={12}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Address *"
+                        value={addrForm.address}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({
+                            ...f,
+                            address: e.target.value,
+                          }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 5 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="City *"
+                        value={addrForm.city}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({ ...f, city: e.target.value }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="State"
+                        value={addrForm.state}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({ ...f, state: e.target.value }))
+                        }
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 3 }}>
+                      <TextField
+                        fullWidth
+                        size="small"
+                        label="Pincode *"
+                        value={addrForm.pincode}
+                        onChange={(e) =>
+                          setAddrForm((f) => ({
+                            ...f,
+                            pincode: e.target.value,
+                          }))
+                        }
+                      />
+                    </Grid>
+                  </Grid>
+                  {addrError && (
+                    <Typography
+                      color="error"
+                      variant="caption"
+                      sx={{ mt: 1, display: "block" }}
+                    >
+                      {addrError}
+                    </Typography>
+                  )}
+                  <Stack direction="row" spacing={1} sx={{ mt: 1.5 }}>
+                    <Button
+                      variant="contained"
+                      size="small"
+                      onClick={saveAddr}
+                      disabled={addrSaving}
+                    >
+                      {addrSaving
+                        ? "Saving…"
+                        : addrMode === "edit"
+                          ? "Save changes"
+                          : "Save address"}
+                    </Button>
+                    {addresses.length > 0 && (
+                      <Button
+                        size="small"
+                        color="inherit"
+                        onClick={() => {
+                          setAddrMode("pick");
+                          setAddrError("");
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </Stack>
+                </Paper>
+              </Collapse>
+
+              {/* ── Delivery details summary (shown when a saved address is selected) ── */}
+              {addrMode === "pick" && (
+                <>
+                  {/* Email field (not part of address book) */}
+                  <TextField
+                    fullWidth
+                    size="small"
+                    label="Email (optional)"
+                    type="email"
+                    value={customer.email}
+                    onChange={(e) =>
+                      setCustomer((c) => ({ ...c, email: e.target.value }))
+                    }
+                    sx={{ mb: 2 }}
+                  />
+
+                  {/* Show validation errors for missing address fields */}
+                  {Object.keys(errors).length > 0 && (
+                    <Typography
+                      color="error"
+                      variant="caption"
+                      sx={{ mb: 1, display: "block" }}
+                    >
+                      Please select or add a valid delivery address.
+                    </Typography>
+                  )}
+                </>
+              )}
+
+              {/* Email for no-saved-address state (form is inline) */}
+              {addrMode === "add" && addresses.length === 0 && (
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Email (optional)"
+                  type="email"
+                  value={customer.email}
+                  onChange={(e) =>
+                    setCustomer((c) => ({ ...c, email: e.target.value }))
+                  }
+                  sx={{ mb: 2 }}
+                />
+              )}
+            </>
+          )}
 
           <OrderSummary items={cartDetailed} total={cartSubtotal} />
 
@@ -406,6 +800,7 @@ function CheckoutForm({
         </Box>
       )}
 
+      {/* ── Step 1: Payment ── */}
       {step === 1 && (
         <Box>
           <Typography variant="h6" sx={{ mb: 2 }}>
@@ -475,7 +870,6 @@ function CheckoutForm({
                 </Button>
               </Box>
             </Fade>
-
             <Fade in={method === "upi"} unmountOnExit>
               <Box>
                 {paymentConfig.razorpayKeyId ? (
@@ -506,7 +900,6 @@ function CheckoutForm({
                 )}
               </Box>
             </Fade>
-
             <Fade in={method === "razorpay"} unmountOnExit>
               <Box>
                 {paymentConfig.razorpayKeyId ? (
@@ -551,6 +944,7 @@ function CheckoutForm({
         </Box>
       )}
 
+      {/* ── Step 2: Confirmed ── */}
       {step === 2 && order && (
         <Box textAlign="center" sx={{ py: 2 }}>
           <CheckCircleIcon

@@ -7,7 +7,7 @@ import * as store from "./products.js";
 import * as orderStore from "./orders-db.js";
 import * as userStore from "./users-db.js";
 import * as teamStore from "./admin-team.js";
-import { initSchema } from "./db.js";
+import { initSchema, query as dbQuery } from "./db.js";
 import * as mailer from "./mailer.js";
 import {
   signToken,
@@ -86,14 +86,18 @@ async function requireActiveUser(req, res, next) {
   const user = await userStore.getUserById(req.user.id);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
   if (user.status === "suspended") {
-    return res.status(403).json({
-      error: "This account has been suspended. Contact support for help.",
-    });
+    return res
+      .status(403)
+      .json({
+        error: "This account has been suspended. Contact support for help.",
+      });
   }
   if (user.status === "deactivated") {
-    return res.status(403).json({
-      error: "This account has been deactivated. Contact support for help.",
-    });
+    return res
+      .status(403)
+      .json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
   }
   next();
 }
@@ -214,14 +218,18 @@ app.post("/api/auth/login", async (req, res) => {
   // If the user was found in the main users table and is an admin, sign in as super admin
   if (user && user.role === "admin") {
     if (user.status === "suspended") {
-      return res.status(403).json({
-        error: "This account has been suspended. Contact support for help.",
-      });
+      return res
+        .status(403)
+        .json({
+          error: "This account has been suspended. Contact support for help.",
+        });
     }
     if (user.status === "deactivated") {
-      return res.status(403).json({
-        error: "This account has been deactivated. Contact support for help.",
-      });
+      return res
+        .status(403)
+        .json({
+          error: "This account has been deactivated. Contact support for help.",
+        });
     }
     if (user.mfa_enabled) {
       return res.json({
@@ -243,14 +251,18 @@ app.post("/api/auth/login", async (req, res) => {
   // If user was found but not admin (customer), sign in as customer
   if (user) {
     if (user.status === "suspended") {
-      return res.status(403).json({
-        error: "This account has been suspended. Contact support for help.",
-      });
+      return res
+        .status(403)
+        .json({
+          error: "This account has been suspended. Contact support for help.",
+        });
     }
     if (user.status === "deactivated") {
-      return res.status(403).json({
-        error: "This account has been deactivated. Contact support for help.",
-      });
+      return res
+        .status(403)
+        .json({
+          error: "This account has been deactivated. Contact support for help.",
+        });
     }
     if (user.mfa_enabled) {
       return res.json({
@@ -301,14 +313,18 @@ app.post("/api/auth/login/mfa", requireMfaChallenge, async (req, res) => {
   if (!valid) return res.status(401).json({ error: "Invalid code" });
   const user = await userStore.getUserById(req.mfaUserId);
   if (user.status === "suspended") {
-    return res.status(403).json({
-      error: "This account has been suspended. Contact support for help.",
-    });
+    return res
+      .status(403)
+      .json({
+        error: "This account has been suspended. Contact support for help.",
+      });
   }
   if (user.status === "deactivated") {
-    return res.status(403).json({
-      error: "This account has been deactivated. Contact support for help.",
-    });
+    return res
+      .status(403)
+      .json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
   }
   res.json({ token: signToken(user), user: userStore.publicUser(user) });
 });
@@ -379,9 +395,11 @@ app.post(
     const { code } = req.body || {};
     const ok = await userStore.confirmMfaSetup(req.user.id, code);
     if (!ok)
-      return res.status(400).json({
-        error: "Invalid code — check your authenticator app and try again",
-      });
+      return res
+        .status(400)
+        .json({
+          error: "Invalid code — check your authenticator app and try again",
+        });
     res.json({ ok: true });
   },
 );
@@ -393,6 +411,158 @@ app.post(
   async (req, res) => {
     await userStore.disableMfa(req.user.id);
     res.json({ ok: true });
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Saved addresses — customers can store multiple delivery addresses and mark
+// one as default. The checkout page reads these to let the user pick quickly.
+// ---------------------------------------------------------------------------
+app.get(
+  "/api/auth/addresses",
+  requireRole("customer"),
+  requireActiveUser,
+  async (req, res) => {
+    const { rows } = await dbQuery(
+      "SELECT * FROM addresses WHERE user_id=$1 ORDER BY is_default DESC, created_at ASC",
+      [req.user.id],
+    );
+    res.json(rows);
+  },
+);
+
+app.post(
+  "/api/auth/addresses",
+  requireRole("customer"),
+  requireActiveUser,
+  async (req, res) => {
+    const {
+      label = "",
+      name,
+      phone,
+      address,
+      city,
+      state = "",
+      pincode,
+      is_default = false,
+    } = req.body || {};
+    if (!name || !phone || !address || !city || !pincode) {
+      return res
+        .status(400)
+        .json({ error: "name, phone, address, city and pincode are required" });
+    }
+    if (is_default) {
+      await dbQuery("UPDATE addresses SET is_default=FALSE WHERE user_id=$1", [
+        req.user.id,
+      ]);
+    }
+    // If this is the first address, make it default automatically
+    const { rows: existing } = await dbQuery(
+      "SELECT COUNT(*) FROM addresses WHERE user_id=$1",
+      [req.user.id],
+    );
+    const makeDefault = is_default || Number(existing[0].count) === 0;
+    const { rows } = await dbQuery(
+      `INSERT INTO addresses (user_id,label,name,phone,address,city,state,pincode,is_default)
+     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) RETURNING *`,
+      [
+        req.user.id,
+        label,
+        name,
+        phone,
+        address,
+        city,
+        state,
+        pincode,
+        makeDefault,
+      ],
+    );
+    res.status(201).json(rows[0]);
+  },
+);
+
+app.put(
+  "/api/auth/addresses/:id",
+  requireRole("customer"),
+  requireActiveUser,
+  async (req, res) => {
+    const { label, name, phone, address, city, state, pincode, is_default } =
+      req.body || {};
+    const { rows: owned } = await dbQuery(
+      "SELECT id FROM addresses WHERE id=$1 AND user_id=$2",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.length)
+      return res.status(404).json({ error: "Address not found" });
+    if (is_default) {
+      await dbQuery("UPDATE addresses SET is_default=FALSE WHERE user_id=$1", [
+        req.user.id,
+      ]);
+    }
+    const { rows } = await dbQuery(
+      `UPDATE addresses SET
+       label=COALESCE($1,label), name=COALESCE($2,name), phone=COALESCE($3,phone),
+       address=COALESCE($4,address), city=COALESCE($5,city), state=COALESCE($6,state),
+       pincode=COALESCE($7,pincode), is_default=COALESCE($8,is_default)
+     WHERE id=$9 AND user_id=$10 RETURNING *`,
+      [
+        label,
+        name,
+        phone,
+        address,
+        city,
+        state,
+        pincode,
+        is_default ?? null,
+        req.params.id,
+        req.user.id,
+      ],
+    );
+    res.json(rows[0]);
+  },
+);
+
+app.put(
+  "/api/auth/addresses/:id/default",
+  requireRole("customer"),
+  requireActiveUser,
+  async (req, res) => {
+    const { rows: owned } = await dbQuery(
+      "SELECT id FROM addresses WHERE id=$1 AND user_id=$2",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.length)
+      return res.status(404).json({ error: "Address not found" });
+    await dbQuery("UPDATE addresses SET is_default=FALSE WHERE user_id=$1", [
+      req.user.id,
+    ]);
+    await dbQuery("UPDATE addresses SET is_default=TRUE WHERE id=$1", [
+      req.params.id,
+    ]);
+    res.json({ ok: true });
+  },
+);
+
+app.delete(
+  "/api/auth/addresses/:id",
+  requireRole("customer"),
+  requireActiveUser,
+  async (req, res) => {
+    const { rows: owned } = await dbQuery(
+      "SELECT id,is_default FROM addresses WHERE id=$1 AND user_id=$2",
+      [req.params.id, req.user.id],
+    );
+    if (!owned.length)
+      return res.status(404).json({ error: "Address not found" });
+    await dbQuery("DELETE FROM addresses WHERE id=$1", [req.params.id]);
+    // If deleted address was default, promote the newest remaining one
+    if (owned[0].is_default) {
+      await dbQuery(
+        "UPDATE addresses SET is_default=TRUE WHERE id=(SELECT id FROM addresses WHERE user_id=$1 ORDER BY created_at DESC LIMIT 1)",
+        [req.user.id],
+      );
+    }
+    res.status(204).end();
   },
 );
 

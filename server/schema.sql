@@ -97,6 +97,23 @@ CREATE INDEX IF NOT EXISTS idx_orders_customer_phone ON orders(customer_phone);
 CREATE INDEX IF NOT EXISTS idx_order_items_order_id ON order_items(order_id);
 CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id);
 
+-- Saved delivery addresses per customer (unlimited, one marked default)
+CREATE TABLE IF NOT EXISTS addresses (
+  id          SERIAL PRIMARY KEY,
+  user_id     INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  label       TEXT NOT NULL DEFAULT '',       -- e.g. "Home", "Office"
+  name        TEXT NOT NULL,
+  phone       TEXT NOT NULL,
+  address     TEXT NOT NULL,
+  city        TEXT NOT NULL,
+  state       TEXT NOT NULL DEFAULT '',
+  pincode     TEXT NOT NULL,
+  is_default  BOOLEAN NOT NULL DEFAULT FALSE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_addresses_user_id ON addresses(user_id);
+
 -- Admin roles with granular permissions
 CREATE TABLE IF NOT EXISTS admin_roles (
   id          SERIAL PRIMARY KEY,

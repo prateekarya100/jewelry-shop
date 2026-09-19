@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
@@ -18,14 +18,26 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
+import DialogActions from "@mui/material/DialogActions";
 import IconButton from "@mui/material/IconButton";
 import LinearProgress from "@mui/material/LinearProgress";
+import Grid from "@mui/material/Grid";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
+import MenuItem from "@mui/material/MenuItem";
+import Select from "@mui/material/Select";
+import InputLabel from "@mui/material/InputLabel";
+import FormControl from "@mui/material/FormControl";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import RemoveIcon from "@mui/icons-material/Remove";
 import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
 import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
+import StarIcon from "@mui/icons-material/Star";
 import { useCustomerAuth } from "../context/CustomerAuthContext.jsx";
 import { useStore } from "../context/StoreContext.jsx";
 import { formatINR } from "../utils/storage.js";
@@ -78,22 +90,495 @@ export default function AccountPage({
 }
 
 function AccountTabs({ onCheckout }) {
-  const { cartDetailed } = useStore();
-  const [tab, setTab] = useState(cartDetailed.length > 0 ? 1 : 0);
+  const initialTab = useMemo(() => {
+    const t = parseInt(
+      new URLSearchParams(window.location.search).get("tab"),
+      10,
+    );
+    return isNaN(t) ? 0 : Math.min(Math.max(t, 0), 3);
+  }, []);
+  const [tab, setTab] = useState(initialTab);
   return (
     <Box>
       <Tabs
         value={tab}
         onChange={(_, v) => setTab(v)}
         sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
+        variant="scrollable"
+        scrollButtons="auto"
       >
         <Tab label="My Orders" />
         <Tab label="My Cart" />
+        <Tab label="Addresses" />
         <Tab label="Security" />
       </Tabs>
       {tab === 0 && <OrderHistory />}
       {tab === 1 && <CartSection onCheckout={onCheckout} />}
-      {tab === 2 && <SecuritySection />}
+      {tab === 2 && <AddressBook />}
+      {tab === 3 && <SecuritySection />}
+    </Box>
+  );
+}
+
+// ─── Saved Address Book ───────────────────────────────────────────────────────
+
+const LABEL_OPTIONS = ["Home", "Office", "Other"];
+const EMPTY_ADDR = {
+  label: "Home",
+  name: "",
+  phone: "",
+  address: "",
+  city: "",
+  state: "",
+  pincode: "",
+  _customLabel: false,
+};
+
+async function addrApi(path, { token, method = "GET", body } = {}) {
+  const res = await fetch(`${paymentConfig.backendBaseUrl}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  return data;
+}
+
+function AddressBook() {
+  const { token } = useCustomerAuth();
+  const [addresses, setAddresses] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState(null); // null = add, object = edit
+  const [form, setForm] = useState(EMPTY_ADDR);
+  const [isDefault, setIsDefault] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const data = await addrApi("/api/auth/addresses", { token });
+      setAddresses(data);
+    } catch {
+      setAddresses([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  function openAdd() {
+    setEditing(null);
+    setForm(EMPTY_ADDR);
+    setIsDefault(addresses?.length === 0);
+    setFormError("");
+    setDialogOpen(true);
+  }
+
+  function openEdit(addr) {
+    setEditing(addr);
+    const lbl = addr.label || "Home";
+    setForm({
+      label: lbl,
+      name: addr.name,
+      phone: addr.phone,
+      address: addr.address,
+      city: addr.city,
+      state: addr.state || "",
+      pincode: addr.pincode,
+      _customLabel: !LABEL_OPTIONS.includes(lbl),
+    });
+    setIsDefault(addr.is_default);
+    setFormError("");
+    setDialogOpen(true);
+  }
+
+  async function handleSave() {
+    const { name, phone, address, city, pincode } = form;
+    if (
+      !name.trim() ||
+      !phone.trim() ||
+      !address.trim() ||
+      !city.trim() ||
+      !pincode.trim()
+    ) {
+      setFormError("Name, phone, address, city and pincode are required.");
+      return;
+    }
+    if (!/^\d{10}$/.test(phone.trim())) {
+      setFormError("Phone must be exactly 10 digits.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      if (editing) {
+        await addrApi(`/api/auth/addresses/${editing.id}`, {
+          token,
+          method: "PUT",
+          body: { ...form, is_default: isDefault },
+        });
+      } else {
+        await addrApi("/api/auth/addresses", {
+          token,
+          method: "POST",
+          body: { ...form, is_default: isDefault },
+        });
+      }
+      setDialogOpen(false);
+      await load();
+    } catch (err) {
+      setFormError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSetDefault(id) {
+    await addrApi(`/api/auth/addresses/${id}/default`, {
+      token,
+      method: "PUT",
+    });
+    await load();
+  }
+
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await addrApi(`/api/auth/addresses/${deleteId}`, {
+        token,
+        method: "DELETE",
+      });
+      setDeleteId(null);
+      await load();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  if (!paymentConfig.backendBaseUrl) {
+    return (
+      <Typography color="text.secondary">
+        Connect a backend to manage addresses.
+      </Typography>
+    );
+  }
+
+  return (
+    <Box>
+      <Stack
+        direction="row"
+        alignItems="center"
+        justifyContent="space-between"
+        sx={{ mb: 2 }}
+      >
+        <Box>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Saved Addresses
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            {addresses?.length ?? 0} address
+            {addresses?.length !== 1 ? "es" : ""} saved
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          startIcon={<AddIcon />}
+          onClick={openAdd}
+          size="small"
+        >
+          Add address
+        </Button>
+      </Stack>
+
+      {loading && <CircularProgress size={24} />}
+
+      {!loading && addresses?.length === 0 && (
+        <Paper variant="outlined" sx={{ p: 4, textAlign: "center" }}>
+          <HomeOutlinedIcon sx={{ fontSize: 44, opacity: 0.3, mb: 1 }} />
+          <Typography color="text.secondary">
+            No saved addresses yet.
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Add one now so checkout is faster next time.
+          </Typography>
+        </Paper>
+      )}
+
+      <Stack spacing={1.5}>
+        {addresses?.map((addr) => (
+          <Paper
+            key={addr.id}
+            variant="outlined"
+            sx={{
+              p: 2,
+              borderColor: addr.is_default ? "primary.main" : "divider",
+              borderWidth: addr.is_default ? 2 : 1,
+              position: "relative",
+            }}
+          >
+            <Stack
+              direction="row"
+              alignItems="flex-start"
+              justifyContent="space-between"
+              spacing={1}
+            >
+              <Box sx={{ flex: 1 }}>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  spacing={1}
+                  sx={{ mb: 0.5 }}
+                >
+                  {addr.label && (
+                    <Chip
+                      label={addr.label}
+                      size="small"
+                      sx={{ fontWeight: 700, fontSize: 11 }}
+                    />
+                  )}
+                  {addr.is_default && (
+                    <Chip
+                      icon={<StarIcon sx={{ fontSize: "14px !important" }} />}
+                      label="Default"
+                      size="small"
+                      color="primary"
+                      sx={{ fontWeight: 700, fontSize: 11 }}
+                    />
+                  )}
+                </Stack>
+                <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                  {addr.name}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {addr.phone}
+                </Typography>
+                <Typography variant="body2" sx={{ mt: 0.5 }}>
+                  {addr.address}, {addr.city}
+                  {addr.state ? `, ${addr.state}` : ""} — {addr.pincode}
+                </Typography>
+              </Box>
+              <Stack direction="row" spacing={0.25}>
+                <IconButton size="small" onClick={() => openEdit(addr)}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+                <IconButton
+                  size="small"
+                  color="error"
+                  onClick={() => setDeleteId(addr.id)}
+                >
+                  <DeleteOutlineIcon fontSize="small" />
+                </IconButton>
+              </Stack>
+            </Stack>
+            {!addr.is_default && (
+              <Button
+                size="small"
+                sx={{ mt: 1, pl: 0, fontWeight: 600, color: "text.secondary" }}
+                onClick={() => handleSetDefault(addr.id)}
+              >
+                Set as default
+              </Button>
+            )}
+          </Paper>
+        ))}
+      </Stack>
+
+      {/* ── Add/Edit dialog ── */}
+      <Dialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+        fullWidth
+        maxWidth="sm"
+      >
+        <DialogTitle>
+          {editing ? "Edit address" : "Add new address"}
+        </DialogTitle>
+        <DialogContent>
+          <Grid container spacing={1.5} sx={{ pt: 1 }}>
+            <Grid size={{ xs: 12, sm: form._customLabel ? 6 : 12 }}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Label</InputLabel>
+                <Select
+                  label="Label"
+                  value={
+                    LABEL_OPTIONS.includes(form.label) ? form.label : "Other"
+                  }
+                  onChange={(e) =>
+                    setForm((f) => ({
+                      ...f,
+                      label: e.target.value === "Other" ? "" : e.target.value,
+                      _customLabel: e.target.value === "Other",
+                    }))
+                  }
+                >
+                  {LABEL_OPTIONS.map((l) => (
+                    <MenuItem key={l} value={l}>
+                      {l}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            {form._customLabel && (
+              <Grid size={{ xs: 12, sm: 6 }}>
+                <TextField
+                  fullWidth
+                  size="small"
+                  label="Custom label"
+                  value={form.label}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, label: e.target.value }))
+                  }
+                />
+              </Grid>
+            )}
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Full name *"
+                value={form.name}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, name: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 6 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Phone * (10 digits)"
+                value={form.phone}
+                inputProps={{ inputMode: "numeric", maxLength: 10 }}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  setForm((f) => ({ ...f, phone: val }));
+                }}
+                error={form.phone.length > 0 && form.phone.length < 10}
+                helperText={
+                  form.phone.length > 0 && form.phone.length < 10
+                    ? "Must be 10 digits"
+                    : ""
+                }
+              />
+            </Grid>
+            <Grid size={12}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Address *"
+                value={form.address}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, address: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="City *"
+                value={form.city}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, city: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="State"
+                value={form.state}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, state: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={{ xs: 12, sm: 3 }}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Pincode *"
+                value={form.pincode}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, pincode: e.target.value }))
+                }
+              />
+            </Grid>
+            <Grid size={12}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isDefault}
+                    onChange={(e) => setIsDefault(e.target.checked)}
+                    size="small"
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    Set as default address
+                  </Typography>
+                }
+              />
+            </Grid>
+          </Grid>
+          {formError && (
+            <Typography
+              color="error"
+              variant="caption"
+              sx={{ mt: 1, display: "block" }}
+            >
+              {formError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <Button variant="contained" onClick={handleSave} disabled={saving}>
+            {saving ? "Saving…" : editing ? "Save changes" : "Add address"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* ── Delete confirm dialog ── */}
+      <Dialog
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Delete address?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2">
+            This address will be permanently removed.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5 }}>
+          <Button onClick={() => setDeleteId(null)}>Cancel</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleDelete}
+            disabled={deleting}
+          >
+            {deleting ? "Deleting…" : "Delete"}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }

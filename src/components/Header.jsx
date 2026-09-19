@@ -58,9 +58,7 @@ export default function Header({ onOpenCart, categories, onSelectCategory }) {
 
   function handleAddressesClick() {
     closeAccountMenu();
-    notify(
-      "Address book is coming soon — for now, you'll enter your address at checkout each time.",
-    );
+    navigate("/account?tab=2");
   }
 
   function handleSignOut() {
