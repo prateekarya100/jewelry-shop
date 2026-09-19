@@ -20,9 +20,10 @@ const paymentConfig = {
   // developing, or your deployed backend's URL in production. Leave it
   // empty to fall back to a simpler client-only checkout (fine for local
   // testing, not recommended once real money is involved).
-  backendBaseUrl: "http://localhost:4000", // e.g. 'http://localhost:4000'
-  // backendBaseUrl: "https://jewelry-shop-p6xg.onrender.com", // e.g. 'http://localhost:4000'
-
+  backendBaseUrl:
+    window.location.hostname === "localhost"
+      ? "http://localhost:4000"
+      : "https://jewelry-shop-p6xg.onrender.com",
   // Razorpay: paste your Key ID (starts with rzp_test_ or rzp_live_) to enable
   // both the "Scan & pay (UPI)" and "Card / netbanking via Razorpay" buttons.
   // Both open Razorpay's real checkout — UPI shows a live, scannable QR code

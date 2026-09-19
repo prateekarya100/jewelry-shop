@@ -18,8 +18,14 @@ import CircularProgress from "@mui/material/CircularProgress";
 import Dialog from "@mui/material/Dialog";
 import DialogTitle from "@mui/material/DialogTitle";
 import DialogContent from "@mui/material/DialogContent";
+import IconButton from "@mui/material/IconButton";
+import LinearProgress from "@mui/material/LinearProgress";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ShieldOutlinedIcon from "@mui/icons-material/ShieldOutlined";
+import AddIcon from "@mui/icons-material/Add";
+import RemoveIcon from "@mui/icons-material/Remove";
+import ShoppingBagOutlinedIcon from "@mui/icons-material/ShoppingBagOutlined";
+import LocalShippingOutlinedIcon from "@mui/icons-material/LocalShippingOutlined";
 import { useCustomerAuth } from "../context/CustomerAuthContext.jsx";
 import { useStore } from "../context/StoreContext.jsx";
 import { formatINR } from "../utils/storage.js";
@@ -31,6 +37,8 @@ import Footer from "./Footer.jsx";
 import Logo from "./Logo.jsx";
 import OrderProgressTracker from "./OrderProgressTracker.jsx";
 
+const FREE_SHIPPING_THRESHOLD = 999;
+
 const EMPTY_LOGIN = { identifier: "", password: "" };
 const EMPTY_REGISTER = { name: "", email: "", phone: "", password: "" };
 
@@ -39,6 +47,7 @@ export default function AccountPage({
   categories,
   onOpenCart,
   onSelectCategory,
+  onCheckout,
 }) {
   const { isLoggedIn } = useCustomerAuth();
 
@@ -53,11 +62,221 @@ export default function AccountPage({
         component="main"
         sx={{ flex: 1, bgcolor: "background.default", py: { xs: 5, md: 7 } }}
       >
-        <Container maxWidth="sm">
-          {isLoggedIn ? <OrderHistory /> : <AuthForm />}
-        </Container>
+        {isLoggedIn ? (
+          <Container maxWidth="md">
+            <AccountTabs onCheckout={onCheckout} />
+          </Container>
+        ) : (
+          <Container maxWidth="sm">
+            <AuthForm />
+          </Container>
+        )}
       </Box>
       <Footer onSelectCategory={onSelectCategory} />
+    </Box>
+  );
+}
+
+function AccountTabs({ onCheckout }) {
+  const { cartDetailed } = useStore();
+  const [tab, setTab] = useState(cartDetailed.length > 0 ? 1 : 0);
+  return (
+    <Box>
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab label="My Orders" />
+        <Tab label="My Cart" />
+        <Tab label="Security" />
+      </Tabs>
+      {tab === 0 && <OrderHistory />}
+      {tab === 1 && <CartSection onCheckout={onCheckout} />}
+      {tab === 2 && <SecuritySection />}
+    </Box>
+  );
+}
+
+function CartSection({ onCheckout }) {
+  const {
+    cartDetailed,
+    updateCartQty,
+    removeFromCart,
+    cartSubtotal,
+    cartCount,
+  } = useStore();
+  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - cartSubtotal);
+  const progress = Math.min(
+    100,
+    (cartSubtotal / FREE_SHIPPING_THRESHOLD) * 100,
+  );
+
+  if (cartDetailed.length === 0) {
+    return (
+      <Box sx={{ textAlign: "center", py: 8, color: "text.secondary" }}>
+        <ShoppingBagOutlinedIcon sx={{ fontSize: 48, opacity: 0.35, mb: 2 }} />
+        <Typography variant="h6">Your bag is empty</Typography>
+        <Typography variant="body2">
+          Browse the store and add something you love.
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box>
+      {/* Free shipping progress */}
+      <Paper variant="outlined" sx={{ p: 2, mb: 2.5 }}>
+        <Stack
+          direction="row"
+          alignItems="center"
+          spacing={0.75}
+          sx={{ mb: 1 }}
+        >
+          <LocalShippingOutlinedIcon
+            sx={{
+              fontSize: 16,
+              color: remaining === 0 ? "success.main" : "text.secondary",
+            }}
+          />
+          <Typography
+            variant="body2"
+            sx={{
+              fontWeight: 700,
+              color: remaining === 0 ? "success.main" : "text.secondary",
+            }}
+          >
+            {remaining === 0
+              ? "You've unlocked free shipping!"
+              : `Add ${formatINR(remaining)} more for free shipping`}
+          </Typography>
+        </Stack>
+        <LinearProgress
+          variant="determinate"
+          value={progress}
+          sx={{
+            height: 5,
+            borderRadius: 3,
+            bgcolor: "rgba(0,0,0,0.08)",
+            "& .MuiLinearProgress-bar": {
+              bgcolor: remaining === 0 ? "success.main" : "secondary.main",
+              borderRadius: 3,
+            },
+          }}
+        />
+      </Paper>
+
+      {/* Items */}
+      <Stack spacing={2} sx={{ mb: 3 }}>
+        {cartDetailed.map((item) => (
+          <Paper key={item.productId} variant="outlined" sx={{ p: 2 }}>
+            <Stack direction="row" spacing={2} alignItems="flex-start">
+              <Box
+                component="img"
+                src={item.product.images?.[0]}
+                alt={item.product.title}
+                sx={{
+                  width: 80,
+                  height: 80,
+                  objectFit: "cover",
+                  borderRadius: 1.5,
+                  flexShrink: 0,
+                }}
+              />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: 700 }} noWrap>
+                  {item.product.title}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formatINR(item.unitPrice)} each
+                </Typography>
+                <Stack
+                  direction="row"
+                  alignItems="center"
+                  justifyContent="space-between"
+                  sx={{ mt: 1.5, flexWrap: "wrap", gap: 1 }}
+                >
+                  {/* Qty control */}
+                  <Stack
+                    direction="row"
+                    alignItems="center"
+                    sx={{
+                      border: "1px solid",
+                      borderColor: "divider",
+                      borderRadius: 1,
+                    }}
+                  >
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        updateCartQty(item.productId, item.qty - 1)
+                      }
+                    >
+                      <RemoveIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                    <Typography
+                      sx={{ minWidth: 28, textAlign: "center", fontSize: 14 }}
+                    >
+                      {item.qty}
+                    </Typography>
+                    <IconButton
+                      size="small"
+                      onClick={() =>
+                        updateCartQty(item.productId, item.qty + 1)
+                      }
+                    >
+                      <AddIcon sx={{ fontSize: 15 }} />
+                    </IconButton>
+                  </Stack>
+                  <Stack direction="row" alignItems="center" spacing={2}>
+                    <Typography sx={{ fontWeight: 700, fontSize: 15 }}>
+                      {formatINR(item.lineTotal)}
+                    </Typography>
+                    <Button
+                      size="small"
+                      color="error"
+                      onClick={() => removeFromCart(item.productId)}
+                      sx={{ p: 0, minWidth: "auto", fontSize: 12 }}
+                    >
+                      Remove
+                    </Button>
+                  </Stack>
+                </Stack>
+              </Box>
+            </Stack>
+          </Paper>
+        ))}
+      </Stack>
+
+      {/* Summary */}
+      <Paper variant="outlined" sx={{ p: 2.5 }}>
+        <Stack
+          direction="row"
+          justifyContent="space-between"
+          alignItems="center"
+          sx={{ mb: 0.5 }}
+        >
+          <Typography variant="body1">
+            Subtotal ({cartCount} {cartCount === 1 ? "item" : "items"})
+          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            {formatINR(cartSubtotal)}
+          </Typography>
+        </Stack>
+        <Typography variant="caption" color="text.secondary">
+          Shipping and taxes calculated at checkout.
+        </Typography>
+        <Button
+          fullWidth
+          variant="contained"
+          size="large"
+          sx={{ mt: 2 }}
+          onClick={onCheckout}
+        >
+          Proceed to Checkout
+        </Button>
+      </Paper>
     </Box>
   );
 }
@@ -419,9 +638,7 @@ function OrderHistory() {
         </Box>
       </Stack>
 
-      <SecuritySection />
-
-      <Typography variant="h6" sx={{ fontSize: 18, mt: 4, mb: 1.5 }}>
+      <Typography variant="h6" sx={{ fontSize: 18, mb: 1.5 }}>
         Order history
       </Typography>
 

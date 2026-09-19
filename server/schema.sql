@@ -19,6 +19,9 @@ CREATE TABLE IF NOT EXISTS users (
 -- harmless no-op if it's already there.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active';
 
+-- Cart stored as JSONB on the user — survives page refresh, syncs across devices.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS cart JSONB NOT NULL DEFAULT '[]';
+
 -- Holds a registration in limbo until its email OTP is verified — the real
 -- `users` row is only created once the code is confirmed, so an unverified
 -- signup never becomes a usable account.
