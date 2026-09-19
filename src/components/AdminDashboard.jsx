@@ -31,6 +31,15 @@ import AccordionDetails from "@mui/material/AccordionDetails";
 import BottomNavigation from "@mui/material/BottomNavigation";
 import BottomNavigationAction from "@mui/material/BottomNavigationAction";
 import Tooltip from "@mui/material/Tooltip";
+import Switch from "@mui/material/Switch";
+import Checkbox from "@mui/material/Checkbox";
+import FormGroup from "@mui/material/FormGroup";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+import CircularProgress from "@mui/material/CircularProgress";
+import InputLabel from "@mui/material/InputLabel";
+import DialogActions from "@mui/material/DialogActions";
 import useMediaQuery from "@mui/material/useMediaQuery";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
@@ -50,6 +59,7 @@ import ReceiptLongIcon from "@mui/icons-material/ReceiptLong";
 import PaymentsIcon from "@mui/icons-material/Payments";
 import WarningAmberIcon from "@mui/icons-material/WarningAmber";
 import PeopleOutlineIcon from "@mui/icons-material/PeopleOutlineOutlined";
+import GroupsOutlinedIcon from "@mui/icons-material/GroupsOutlined";
 import BlockIcon from "@mui/icons-material/Block";
 import PauseCircleOutlineIcon from "@mui/icons-material/PauseCircleOutlineOutlined";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
@@ -86,12 +96,23 @@ const EMPTY_FORM = {
   stock: "",
 };
 
-const NAV = [
+const ALL_NAV = [
   { key: "overview", label: "Overview", icon: DashboardOutlinedIcon },
   { key: "products", label: "Products", icon: Inventory2OutlinedIcon },
   { key: "orders", label: "Orders", icon: ReceiptLongOutlinedIcon },
   { key: "customers", label: "Customers", icon: PeopleOutlineIcon },
+  { key: "team", label: "Team", icon: GroupsOutlinedIcon },
 ];
+
+const PERM_LABELS = {
+  view_orders: "View orders",
+  edit_orders: "Edit orders (change status)",
+  view_products: "View products",
+  edit_products: "Edit products (add/edit/delete)",
+  view_customers: "View customers",
+  manage_customers: "Manage customers (suspend/delete)",
+  manage_team: "Manage team (roles & users)",
+};
 
 const CUSTOMER_STATUS_META = {
   active: {
@@ -149,7 +170,23 @@ export default function AdminDashboard({ onExit }) {
     clearError,
     token,
     logout,
+    isSuperAdmin,
+    permissions: perms,
   } = useAdminAuth();
+
+  const NAV = useMemo(
+    () =>
+      ALL_NAV.filter((item) => {
+        if (item.key === "overview") return true;
+        if (item.key === "products") return isSuperAdmin || perms.view_products;
+        if (item.key === "orders") return isSuperAdmin || perms.view_orders;
+        if (item.key === "customers")
+          return isSuperAdmin || perms.view_customers;
+        if (item.key === "team") return isSuperAdmin;
+        return true;
+      }),
+    [isSuperAdmin, perms],
+  );
   // Below this width, use the compact phone shell (bottom nav, card lists
   // instead of tables). Deliberately narrower than a typical "mobile"
   // breakpoint (820px) — portrait tablets (iPad Mini at 744px, iPad at
@@ -741,13 +778,15 @@ export default function AdminDashboard({ onExit }) {
               <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 } }}>
                 Products
               </Typography>
-              <Button
-                variant="contained"
-                startIcon={<AddIcon />}
-                onClick={openAddForm}
-              >
-                Add product
-              </Button>
+              {(isSuperAdmin || perms.edit_products) && (
+                <Button
+                  variant="contained"
+                  startIcon={<AddIcon />}
+                  onClick={openAddForm}
+                >
+                  Add product
+                </Button>
+              )}
             </Stack>
 
             {isMobile ? (
@@ -807,21 +846,23 @@ export default function AdminDashboard({ onExit }) {
                             </Typography>
                           )}
                         </Stack>
-                        <Stack direction="row">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEditForm(p)}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(p.id)}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
-                        </Stack>
+                        {(isSuperAdmin || perms.edit_products) && (
+                          <Stack direction="row">
+                            <IconButton
+                              size="small"
+                              onClick={() => openEditForm(p)}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </IconButton>
+                            <IconButton
+                              size="small"
+                              color="error"
+                              onClick={() => handleDelete(p.id)}
+                            >
+                              <DeleteOutlineIcon fontSize="small" />
+                            </IconButton>
+                          </Stack>
+                        )}
                       </Stack>
                     </Box>
                   </Paper>
@@ -909,19 +950,23 @@ export default function AdminDashboard({ onExit }) {
                           </Typography>
                         </TableCell>
                         <TableCell align="right">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEditForm(p)}
-                          >
-                            <EditOutlinedIcon fontSize="small" />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => handleDelete(p.id)}
-                          >
-                            <DeleteOutlineIcon fontSize="small" />
-                          </IconButton>
+                          {(isSuperAdmin || perms.edit_products) && (
+                            <>
+                              <IconButton
+                                size="small"
+                                onClick={() => openEditForm(p)}
+                              >
+                                <EditOutlinedIcon fontSize="small" />
+                              </IconButton>
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleDelete(p.id)}
+                              >
+                                <DeleteOutlineIcon fontSize="small" />
+                              </IconButton>
+                            </>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -1177,11 +1222,16 @@ export default function AdminDashboard({ onExit }) {
                     onStatusChange={(status) =>
                       handleStatusChange(o.id, status)
                     }
+                    canEditOrders={isSuperAdmin || !!perms.edit_orders}
                   />
                 ))}
               </Stack>
             )}
           </Box>
+        )}
+
+        {nav === "team" && isSuperAdmin && (
+          <TeamSection token={token} onSessionExpired={handleSessionExpired} />
         )}
 
         {nav === "customers" && (
@@ -1235,6 +1285,7 @@ export default function AdminDashboard({ onExit }) {
                     customer={c}
                     onStatusChange={handleCustomerStatusChange}
                     onDelete={() => setDeleteTarget(c)}
+                    canManage={isSuperAdmin || !!perms.manage_customers}
                   />
                 ))}
               </Stack>
@@ -1280,6 +1331,9 @@ export default function AdminDashboard({ onExit }) {
                               customer={c}
                               onStatusChange={handleCustomerStatusChange}
                               onDelete={() => setDeleteTarget(c)}
+                              canManage={
+                                isSuperAdmin || !!perms.manage_customers
+                              }
                             />
                           </TableCell>
                         </TableRow>
@@ -1467,7 +1521,13 @@ function StatCard({ label, value, accent, onClick, icon: Icon, trend }) {
   );
 }
 
-function OrderAccordion({ order: o, products, onCopy, onStatusChange }) {
+function OrderAccordion({
+  order: o,
+  products,
+  onCopy,
+  onStatusChange,
+  canEditOrders = true,
+}) {
   const c = o.customer || {};
   const isPaid = o.paymentMethod !== "cod";
   const status = o.fulfillmentStatus || "pending";
@@ -1580,6 +1640,7 @@ function OrderAccordion({ order: o, products, onCopy, onStatusChange }) {
             <Select
               value={status}
               onChange={(e) => onStatusChange(e.target.value)}
+              disabled={!canEditOrders}
             >
               {STATUS_ORDER.map((s) => (
                 <MenuItem key={s} value={s}>
@@ -1840,6 +1901,7 @@ function AdminLoginPage({
             </Button>
           </Box>
         )}
+        {!mfaChallengePending && <ForgotPasswordInline />}
         <Button fullWidth color="inherit" onClick={onExit} sx={{ mt: 1.5 }}>
           ← Back to store
         </Button>
@@ -1848,8 +1910,86 @@ function AdminLoginPage({
   );
 }
 
-function CustomerActions({ customer, onStatusChange, onDelete }) {
+function ForgotPasswordInline() {
+  const [open, setOpen] = useState(false);
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit(e) {
+    e.preventDefault();
+    setBusy(true);
+    try {
+      await fetch(`${paymentConfig.backendBaseUrl}/api/auth/forgot-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ identifier: email }),
+      });
+    } catch (_) {}
+    setSent(true);
+    setBusy(false);
+  }
+
+  if (!open) {
+    return (
+      <Button
+        fullWidth
+        size="small"
+        onClick={() => setOpen(true)}
+        sx={{ mt: 0.5 }}
+      >
+        Forgot password?
+      </Button>
+    );
+  }
+
+  return (
+    <Box sx={{ mt: 2, p: 2, bgcolor: "background.default", borderRadius: 2 }}>
+      {sent ? (
+        <Typography variant="body2" color="text.secondary" textAlign="center">
+          If an admin account exists for that email, a reset link has been sent.
+        </Typography>
+      ) : (
+        <Box component="form" onSubmit={submit}>
+          <Typography variant="body2" sx={{ mb: 1.5 }}>
+            Enter your admin email to receive a reset link.
+          </Typography>
+          <TextField
+            fullWidth
+            size="small"
+            label="Admin email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            sx={{ mb: 1.5 }}
+          />
+          <Stack direction="row" spacing={1}>
+            <Button size="small" color="inherit" onClick={() => setOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="small"
+              variant="contained"
+              type="submit"
+              disabled={busy || !email}
+            >
+              {busy ? "Sending…" : "Send reset link"}
+            </Button>
+          </Stack>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+function CustomerActions({
+  customer,
+  onStatusChange,
+  onDelete,
+  canManage = true,
+}) {
   const { status } = customer;
+  if (!canManage) return null;
   return (
     <Stack direction="row" spacing={0.5} justifyContent="flex-end">
       {status !== "active" && (
@@ -1893,7 +2033,12 @@ function CustomerActions({ customer, onStatusChange, onDelete }) {
   );
 }
 
-function CustomerCard({ customer, onStatusChange, onDelete }) {
+function CustomerCard({
+  customer,
+  onStatusChange,
+  onDelete,
+  canManage = true,
+}) {
   const meta =
     CUSTOMER_STATUS_META[customer.status] || CUSTOMER_STATUS_META.active;
   return (
@@ -1930,7 +2075,548 @@ function CustomerCard({ customer, onStatusChange, onDelete }) {
         customer={customer}
         onStatusChange={onStatusChange}
         onDelete={onDelete}
+        canManage={canManage}
       />
     </Paper>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Team Section — roles and admin user management (super admin only)
+// ---------------------------------------------------------------------------
+
+const EMPTY_ROLE_FORM = { name: "", permissions: {} };
+const EMPTY_USER_FORM = { name: "", email: "", password: "", roleId: "" };
+
+function TeamSection({ token, onSessionExpired }) {
+  const [tab, setTab] = useState(0);
+
+  // Roles state
+  const [roles, setRoles] = useState([]);
+  const [rolesLoading, setRolesLoading] = useState(true);
+  const [roleDialog, setRoleDialog] = useState(false);
+  const [roleForm, setRoleForm] = useState(EMPTY_ROLE_FORM);
+  const [editingRoleId, setEditingRoleId] = useState(null);
+  const [roleSaving, setRoleSaving] = useState(false);
+  const [roleError, setRoleError] = useState("");
+
+  // Users state
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [userDialog, setUserDialog] = useState(false);
+  const [userForm, setUserForm] = useState(EMPTY_USER_FORM);
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [userSaving, setUserSaving] = useState(false);
+  const [userError, setUserError] = useState("");
+
+  const loadRoles = useCallback(async () => {
+    setRolesLoading(true);
+    try {
+      const data = await api("/api/admin/roles", { token });
+      setRoles(data);
+    } catch (err) {
+      if (err.status === 401) onSessionExpired();
+    } finally {
+      setRolesLoading(false);
+    }
+  }, [token, onSessionExpired]);
+
+  const loadUsers = useCallback(async () => {
+    setUsersLoading(true);
+    try {
+      const data = await api("/api/admin/team", { token });
+      setUsers(data);
+    } catch (err) {
+      if (err.status === 401) onSessionExpired();
+    } finally {
+      setUsersLoading(false);
+    }
+  }, [token, onSessionExpired]);
+
+  useEffect(() => {
+    loadRoles();
+  }, [loadRoles]);
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  // Role dialog handlers
+  function openAddRole() {
+    setEditingRoleId(null);
+    setRoleForm(EMPTY_ROLE_FORM);
+    setRoleError("");
+    setRoleDialog(true);
+  }
+
+  function openEditRole(role) {
+    setEditingRoleId(role.id);
+    setRoleForm({ name: role.name, permissions: role.permissions || {} });
+    setRoleError("");
+    setRoleDialog(true);
+  }
+
+  async function saveRole() {
+    if (!roleForm.name.trim()) {
+      setRoleError("Name is required");
+      return;
+    }
+    setRoleSaving(true);
+    setRoleError("");
+    try {
+      if (editingRoleId) {
+        await api(`/api/admin/roles/${editingRoleId}`, {
+          token,
+          method: "PUT",
+          body: { name: roleForm.name, permissions: roleForm.permissions },
+        });
+      } else {
+        await api("/api/admin/roles", {
+          token,
+          method: "POST",
+          body: { name: roleForm.name, permissions: roleForm.permissions },
+        });
+      }
+      setRoleDialog(false);
+      await loadRoles();
+    } catch (err) {
+      setRoleError(err.message);
+    } finally {
+      setRoleSaving(false);
+    }
+  }
+
+  async function deleteRole(id) {
+    if (
+      !window.confirm(
+        "Delete this role? Users assigned to it will lose their role.",
+      )
+    )
+      return;
+    try {
+      await api(`/api/admin/roles/${id}`, { token, method: "DELETE" });
+      await loadRoles();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  // User dialog handlers
+  function openAddUser() {
+    setEditingUserId(null);
+    setUserForm(EMPTY_USER_FORM);
+    setUserError("");
+    setUserDialog(true);
+  }
+
+  function openEditUser(user) {
+    setEditingUserId(user.id);
+    setUserForm({
+      name: user.name,
+      email: user.email,
+      password: "",
+      roleId: user.role_id || "",
+      isActive: user.is_active,
+    });
+    setUserError("");
+    setUserDialog(true);
+  }
+
+  async function saveUser() {
+    if (!userForm.name.trim() || !userForm.email.trim()) {
+      setUserError("Name and email are required");
+      return;
+    }
+    if (!editingUserId && !userForm.password) {
+      setUserError("Password is required");
+      return;
+    }
+    setUserSaving(true);
+    setUserError("");
+    try {
+      if (editingUserId) {
+        const body = {
+          name: userForm.name,
+          email: userForm.email,
+          roleId: userForm.roleId || null,
+          isActive: userForm.isActive,
+        };
+        await api(`/api/admin/team/${editingUserId}`, {
+          token,
+          method: "PUT",
+          body,
+        });
+      } else {
+        await api("/api/admin/team", {
+          token,
+          method: "POST",
+          body: {
+            name: userForm.name,
+            email: userForm.email,
+            password: userForm.password,
+            roleId: userForm.roleId || null,
+          },
+        });
+      }
+      setUserDialog(false);
+      await loadUsers();
+    } catch (err) {
+      setUserError(err.message);
+    } finally {
+      setUserSaving(false);
+    }
+  }
+
+  async function deleteUser(id) {
+    if (!window.confirm("Delete this admin user? This cannot be undone."))
+      return;
+    try {
+      await api(`/api/admin/team/${id}`, { token, method: "DELETE" });
+      await loadUsers();
+    } catch (err) {
+      alert(err.message);
+    }
+  }
+
+  function togglePerm(perm) {
+    setRoleForm((f) => ({
+      ...f,
+      permissions: { ...f.permissions, [perm]: !f.permissions[perm] },
+    }));
+  }
+
+  return (
+    <Box>
+      <Typography variant="h4" sx={{ fontSize: { xs: 22, md: 26 }, mb: 2.5 }}>
+        Team
+      </Typography>
+
+      <Tabs
+        value={tab}
+        onChange={(_, v) => setTab(v)}
+        sx={{ mb: 3, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab label="Roles" />
+        <Tab label="Users" />
+      </Tabs>
+
+      {/* Roles tab */}
+      {tab === 0 && (
+        <Box>
+          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openAddRole}
+            >
+              Add role
+            </Button>
+          </Stack>
+
+          {rolesLoading ? (
+            <Stack alignItems="center" sx={{ py: 6 }}>
+              <CircularProgress size={28} />
+            </Stack>
+          ) : roles.length === 0 ? (
+            <Typography color="text.secondary">No roles yet.</Typography>
+          ) : (
+            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Permissions</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {roles.map((r) => (
+                    <TableRow key={r.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{r.name}</TableCell>
+                      <TableCell>
+                        <Stack direction="row" flexWrap="wrap" gap={0.5}>
+                          {Object.entries(r.permissions || {})
+                            .filter(([, v]) => v)
+                            .map(([k]) => (
+                              <Chip
+                                key={k}
+                                size="small"
+                                label={PERM_LABELS[k] || k}
+                                sx={{
+                                  fontSize: 11,
+                                  bgcolor: "rgba(184,112,63,0.12)",
+                                  color: "secondary.dark",
+                                  fontWeight: 600,
+                                }}
+                              />
+                            ))}
+                          {Object.values(r.permissions || {}).filter(Boolean)
+                            .length === 0 && (
+                            <Typography
+                              variant="caption"
+                              color="text.secondary"
+                            >
+                              No permissions
+                            </Typography>
+                          )}
+                        </Stack>
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          onClick={() => openEditRole(r)}
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => deleteRole(r.id)}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+          )}
+        </Box>
+      )}
+
+      {/* Users tab */}
+      {tab === 1 && (
+        <Box>
+          <Stack direction="row" justifyContent="flex-end" sx={{ mb: 2 }}>
+            <Button
+              variant="contained"
+              startIcon={<AddIcon />}
+              onClick={openAddUser}
+            >
+              Add user
+            </Button>
+          </Stack>
+
+          {usersLoading ? (
+            <Stack alignItems="center" sx={{ py: 6 }}>
+              <CircularProgress size={28} />
+            </Stack>
+          ) : users.length === 0 ? (
+            <Typography color="text.secondary">No team members yet.</Typography>
+          ) : (
+            <Paper variant="outlined" sx={{ overflowX: "auto" }}>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Name</TableCell>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Role</TableCell>
+                    <TableCell>Status</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {users.map((u) => (
+                    <TableRow key={u.id} hover>
+                      <TableCell sx={{ fontWeight: 600 }}>{u.name}</TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        {u.role_name ? (
+                          <Chip
+                            size="small"
+                            label={u.role_name}
+                            sx={{
+                              bgcolor: "rgba(184,112,63,0.12)",
+                              color: "secondary.dark",
+                              fontWeight: 600,
+                              fontSize: 11,
+                            }}
+                          />
+                        ) : (
+                          <Typography variant="caption" color="text.secondary">
+                            —
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Chip
+                          size="small"
+                          label={u.is_active ? "Active" : "Inactive"}
+                          sx={{
+                            bgcolor: u.is_active
+                              ? "rgba(74,122,82,0.12)"
+                              : "rgba(122,32,54,0.1)",
+                            color: u.is_active ? "success.main" : "error.main",
+                            fontWeight: 700,
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell align="right">
+                        <IconButton
+                          size="small"
+                          onClick={() => openEditUser(u)}
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </IconButton>
+                        <IconButton
+                          size="small"
+                          color="error"
+                          onClick={() => deleteUser(u.id)}
+                        >
+                          <DeleteOutlineIcon fontSize="small" />
+                        </IconButton>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </Paper>
+          )}
+        </Box>
+      )}
+
+      {/* Role dialog */}
+      <Dialog
+        open={roleDialog}
+        onClose={() => setRoleDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{editingRoleId ? "Edit role" : "Add role"}</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            size="small"
+            label="Role name"
+            value={roleForm.name}
+            onChange={(e) =>
+              setRoleForm((f) => ({ ...f, name: e.target.value }))
+            }
+            sx={{ mt: 1, mb: 2 }}
+          />
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Permissions
+          </Typography>
+          <FormGroup>
+            {Object.entries(PERM_LABELS).map(([key, label]) => (
+              <FormControlLabel
+                key={key}
+                control={
+                  <Checkbox
+                    size="small"
+                    checked={!!roleForm.permissions[key]}
+                    onChange={() => togglePerm(key)}
+                  />
+                }
+                label={<Typography variant="body2">{label}</Typography>}
+              />
+            ))}
+          </FormGroup>
+          {roleError && (
+            <Typography color="error.main" variant="body2" sx={{ mt: 1.5 }}>
+              {roleError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button color="inherit" onClick={() => setRoleDialog(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={saveRole} disabled={roleSaving}>
+            {roleSaving ? "Saving…" : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* User dialog */}
+      <Dialog
+        open={userDialog}
+        onClose={() => setUserDialog(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>{editingUserId ? "Edit user" : "Add user"}</DialogTitle>
+        <DialogContent>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              fullWidth
+              size="small"
+              label="Name"
+              value={userForm.name}
+              onChange={(e) =>
+                setUserForm((f) => ({ ...f, name: e.target.value }))
+              }
+            />
+            <TextField
+              fullWidth
+              size="small"
+              label="Email"
+              type="email"
+              value={userForm.email}
+              onChange={(e) =>
+                setUserForm((f) => ({ ...f, email: e.target.value }))
+              }
+            />
+            {!editingUserId && (
+              <TextField
+                fullWidth
+                size="small"
+                label="Password"
+                type="password"
+                value={userForm.password}
+                onChange={(e) =>
+                  setUserForm((f) => ({ ...f, password: e.target.value }))
+                }
+              />
+            )}
+            <FormControl fullWidth size="small">
+              <InputLabel>Role</InputLabel>
+              <Select
+                label="Role"
+                value={userForm.roleId || ""}
+                onChange={(e) =>
+                  setUserForm((f) => ({ ...f, roleId: e.target.value }))
+                }
+              >
+                <MenuItem value="">
+                  <em>None</em>
+                </MenuItem>
+                {roles.map((r) => (
+                  <MenuItem key={r.id} value={r.id}>
+                    {r.name}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            {editingUserId && (
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={!!userForm.isActive}
+                    onChange={(e) =>
+                      setUserForm((f) => ({ ...f, isActive: e.target.checked }))
+                    }
+                  />
+                }
+                label="Active"
+              />
+            )}
+          </Stack>
+          {userError && (
+            <Typography color="error.main" variant="body2" sx={{ mt: 1.5 }}>
+              {userError}
+            </Typography>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button color="inherit" onClick={() => setUserDialog(false)}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={saveUser} disabled={userSaving}>
+            {userSaving ? "Saving…" : "Save"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </Box>
   );
 }

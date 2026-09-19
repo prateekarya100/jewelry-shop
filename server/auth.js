@@ -1,28 +1,37 @@
-import jwt from 'jsonwebtoken';
-import crypto from 'crypto';
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
 
 const { JWT_SECRET } = process.env;
 if (!JWT_SECRET) {
-  console.warn('⚠️  JWT_SECRET is not set in server/.env — using an insecure default. Set a real one before deploying.');
+  console.warn(
+    "⚠️  JWT_SECRET is not set in server/.env — using an insecure default. Set a real one before deploying.",
+  );
 }
-const SECRET = JWT_SECRET || 'dev-only-insecure-secret-change-me';
+const SECRET = JWT_SECRET || "dev-only-insecure-secret-change-me";
 
-const TOKEN_TTL = '7d';
-const TEMP_MFA_TOKEN_TTL = '10m'; // short-lived token used only during the 2FA challenge step
+const TOKEN_TTL = "7d";
+const TEMP_MFA_TOKEN_TTL = "10m"; // short-lived token used only during the 2FA challenge step
 
 export function signToken(user) {
-  return jwt.sign(
-    { sub: user.id, role: user.role, name: user.name, email: user.email, phone: user.phone },
-    SECRET,
-    { expiresIn: TOKEN_TTL }
-  );
+  const payload = {
+    sub: user.id,
+    role: user.role,
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+  };
+  if (user.isSuperAdmin !== undefined) payload.isSuperAdmin = user.isSuperAdmin;
+  if (user.permissions !== undefined) payload.permissions = user.permissions;
+  return jwt.sign(payload, SECRET, { expiresIn: TOKEN_TTL });
 }
 
 /** A short-lived token issued after a correct password when the account has
  * 2FA enabled — only usable to complete the 2FA challenge, not as a real
  * session token. */
 export function signMfaChallengeToken(user) {
-  return jwt.sign({ sub: user.id, mfaChallenge: true }, SECRET, { expiresIn: TEMP_MFA_TOKEN_TTL });
+  return jwt.sign({ sub: user.id, mfaChallenge: true }, SECRET, {
+    expiresIn: TEMP_MFA_TOKEN_TTL,
+  });
 }
 
 export function verifyToken(token) {
@@ -34,8 +43,8 @@ export function verifyToken(token) {
 }
 
 function tokenFromHeader(req) {
-  const header = req.headers.authorization || '';
-  return header.startsWith('Bearer ') ? header.slice(7) : null;
+  const header = req.headers.authorization || "";
+  return header.startsWith("Bearer ") ? header.slice(7) : null;
 }
 
 /** Requires a valid, full (non-MFA-challenge) session token. Attaches
@@ -43,9 +52,17 @@ function tokenFromHeader(req) {
 export function requireAuth(req, res, next) {
   const payload = verifyToken(tokenFromHeader(req));
   if (!payload || payload.mfaChallenge) {
-    return res.status(401).json({ error: 'Not authenticated' });
+    return res.status(401).json({ error: "Not authenticated" });
   }
-  req.user = { id: payload.sub, role: payload.role, name: payload.name, email: payload.email, phone: payload.phone };
+  req.user = {
+    id: payload.sub,
+    role: payload.role,
+    name: payload.name,
+    email: payload.email,
+    phone: payload.phone,
+    isSuperAdmin: payload.isSuperAdmin || false,
+    permissions: payload.permissions || {},
+  };
   next();
 }
 
@@ -54,7 +71,7 @@ export function requireRole(role) {
   return (req, res, next) => {
     requireAuth(req, res, () => {
       if (req.user.role !== role) {
-        return res.status(403).json({ error: 'Not authorized' });
+        return res.status(403).json({ error: "Not authorized" });
       }
       next();
     });
@@ -66,7 +83,7 @@ export function requireRole(role) {
 export function requireMfaChallenge(req, res, next) {
   const payload = verifyToken(tokenFromHeader(req));
   if (!payload || !payload.mfaChallenge) {
-    return res.status(401).json({ error: 'Invalid or expired challenge' });
+    return res.status(401).json({ error: "Invalid or expired challenge" });
   }
   req.mfaUserId = payload.sub;
   next();
@@ -76,16 +93,19 @@ export function requireMfaChallenge(req, res, next) {
 // Password hashing — Node's built-in scrypt, no extra dependency needed.
 // ---------------------------------------------------------------------------
 
-export function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
-  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+export function hashPassword(
+  password,
+  salt = crypto.randomBytes(16).toString("hex"),
+) {
+  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
   return `${salt}:${hash}`;
 }
 
 export function verifyPasswordHash(password, stored) {
-  const [salt, hash] = stored.split(':');
-  const check = crypto.scryptSync(password, salt, 64).toString('hex');
-  const a = Buffer.from(hash, 'hex');
-  const b = Buffer.from(check, 'hex');
+  const [salt, hash] = stored.split(":");
+  const check = crypto.scryptSync(password, salt, 64).toString("hex");
+  const a = Buffer.from(hash, "hex");
+  const b = Buffer.from(check, "hex");
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
@@ -96,11 +116,11 @@ export function verifyPasswordHash(password, stored) {
 // ---------------------------------------------------------------------------
 
 export function generateResetToken() {
-  return crypto.randomBytes(32).toString('hex');
+  return crypto.randomBytes(32).toString("hex");
 }
 
 export function hashResetToken(token) {
-  return crypto.createHash('sha256').update(token).digest('hex');
+  return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 // ---------------------------------------------------------------------------
@@ -114,5 +134,5 @@ export function generateOtp() {
 }
 
 export function hashOtp(otp) {
-  return crypto.createHash('sha256').update(otp).digest('hex');
+  return crypto.createHash("sha256").update(otp).digest("hex");
 }

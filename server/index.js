@@ -6,6 +6,7 @@ import Razorpay from "razorpay";
 import * as store from "./products.js";
 import * as orderStore from "./orders-db.js";
 import * as userStore from "./users-db.js";
+import * as teamStore from "./admin-team.js";
 import { initSchema } from "./db.js";
 import * as mailer from "./mailer.js";
 import {
@@ -57,6 +58,25 @@ app.use(
 // render); create/update/delete require an admin session.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Permission middleware
+// ---------------------------------------------------------------------------
+
+function requirePermission(perm) {
+  return (req, res, next) => {
+    if (req.user && req.user.isSuperAdmin) return next();
+    const perms = (req.user && req.user.permissions) || {};
+    if (!perms[perm])
+      return res.status(403).json({ error: "Permission denied" });
+    next();
+  };
+}
+
+function requireSuperAdmin(req, res, next) {
+  if (req.user && req.user.isSuperAdmin) return next();
+  return res.status(403).json({ error: "Super admin access required" });
+}
+
 // Since JWTs are stateless, a suspended/deactivated customer's existing
 // token would otherwise keep working until it naturally expires (up to 7
 // days). This re-checks their CURRENT status from the database, so an
@@ -82,37 +102,48 @@ app.get("/api/products", async (_req, res) => {
   res.json(await store.loadProducts());
 });
 
-app.post("/api/admin/products", requireRole("admin"), async (req, res) => {
-  const p = req.body || {};
-  if (!p.title || !p.category || p.price === undefined) {
-    return res
-      .status(400)
-      .json({ error: "title, category and price are required" });
-  }
-  const created = await store.addProduct({
-    title: String(p.title),
-    category: String(p.category),
-    tagline: String(p.tagline || ""),
-    description: String(p.description || ""),
-    price: Number(p.price) || 0,
-    discount: Number(p.discount) || 0,
-    images: Array.isArray(p.images) ? p.images : [],
-    video: String(p.video || ""),
-    material: String(p.material || ""),
-    stock: Number(p.stock) || 0,
-  });
-  res.status(201).json(created);
-});
+app.post(
+  "/api/admin/products",
+  requireRole("admin"),
+  requirePermission("edit_products"),
+  async (req, res) => {
+    const p = req.body || {};
+    if (!p.title || !p.category || p.price === undefined) {
+      return res
+        .status(400)
+        .json({ error: "title, category and price are required" });
+    }
+    const created = await store.addProduct({
+      title: String(p.title),
+      category: String(p.category),
+      tagline: String(p.tagline || ""),
+      description: String(p.description || ""),
+      price: Number(p.price) || 0,
+      discount: Number(p.discount) || 0,
+      images: Array.isArray(p.images) ? p.images : [],
+      video: String(p.video || ""),
+      material: String(p.material || ""),
+      stock: Number(p.stock) || 0,
+    });
+    res.status(201).json(created);
+  },
+);
 
-app.put("/api/admin/products/:id", requireRole("admin"), async (req, res) => {
-  const updated = await store.updateProduct(req.params.id, req.body || {});
-  if (!updated) return res.status(404).json({ error: "Product not found" });
-  res.json(updated);
-});
+app.put(
+  "/api/admin/products/:id",
+  requireRole("admin"),
+  requirePermission("edit_products"),
+  async (req, res) => {
+    const updated = await store.updateProduct(req.params.id, req.body || {});
+    if (!updated) return res.status(404).json({ error: "Product not found" });
+    res.json(updated);
+  },
+);
 
 app.delete(
   "/api/admin/products/:id",
   requireRole("admin"),
+  requirePermission("edit_products"),
   async (req, res) => {
     const ok = await store.deleteProduct(req.params.id);
     if (!ok) return res.status(404).json({ error: "Product not found" });
@@ -179,29 +210,88 @@ app.post("/api/auth/login", async (req, res) => {
       .json({ error: "Email/phone and password are required" });
   }
   const user = await userStore.verifyLogin(identifier, password);
-  if (!user)
-    return res.status(401).json({ error: "Invalid email/phone or password" });
 
-  if (user.status === "suspended") {
-    return res.status(403).json({
-      error: "This account has been suspended. Contact support for help.",
-    });
-  }
-  if (user.status === "deactivated") {
-    return res.status(403).json({
-      error: "This account has been deactivated. Contact support for help.",
-    });
-  }
-
-  if (user.mfa_enabled) {
-    // Password was correct, but a 2FA code is still needed. Issue a
-    // short-lived challenge token instead of a real session.
+  // If the user was found in the main users table and is an admin, sign in as super admin
+  if (user && user.role === "admin") {
+    if (user.status === "suspended") {
+      return res.status(403).json({
+        error: "This account has been suspended. Contact support for help.",
+      });
+    }
+    if (user.status === "deactivated") {
+      return res.status(403).json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
+    }
+    if (user.mfa_enabled) {
+      return res.json({
+        mfaRequired: true,
+        challengeToken: signMfaChallengeToken(user),
+      });
+    }
+    const tokenUser = { ...user, isSuperAdmin: true, permissions: {} };
     return res.json({
-      mfaRequired: true,
-      challengeToken: signMfaChallengeToken(user),
+      token: signToken(tokenUser),
+      user: {
+        ...userStore.publicUser(user),
+        isSuperAdmin: true,
+        permissions: {},
+      },
     });
   }
-  res.json({ token: signToken(user), user: userStore.publicUser(user) });
+
+  // If user was found but not admin (customer), sign in as customer
+  if (user) {
+    if (user.status === "suspended") {
+      return res.status(403).json({
+        error: "This account has been suspended. Contact support for help.",
+      });
+    }
+    if (user.status === "deactivated") {
+      return res.status(403).json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
+    }
+    if (user.mfa_enabled) {
+      return res.json({
+        mfaRequired: true,
+        challengeToken: signMfaChallengeToken(user),
+      });
+    }
+    return res.json({
+      token: signToken(user),
+      user: userStore.publicUser(user),
+    });
+  }
+
+  // Check admin_users table (staff accounts)
+  const adminUser = await teamStore.verifyAdminLogin(identifier, password);
+  if (adminUser) {
+    const permissions = adminUser.role_permissions || {};
+    const tokenPayload = {
+      id: "au_" + adminUser.id,
+      role: "admin",
+      isSuperAdmin: false,
+      permissions,
+      name: adminUser.name,
+      email: adminUser.email,
+      phone: null,
+    };
+    const token = signToken(tokenPayload);
+    return res.json({
+      token,
+      user: {
+        id: "au_" + adminUser.id,
+        role: "admin",
+        isSuperAdmin: false,
+        permissions,
+        name: adminUser.name,
+        email: adminUser.email,
+      },
+    });
+  }
+
+  return res.status(401).json({ error: "Invalid email/phone or password" });
 });
 
 app.post("/api/auth/login/mfa", requireMfaChallenge, async (req, res) => {
@@ -358,18 +448,24 @@ app.post("/api/orders", async (req, res) => {
 // permanently delete a customer account.
 // ---------------------------------------------------------------------------
 
-app.get("/api/admin/customers", requireRole("admin"), async (_req, res) => {
-  try {
-    res.json(await userStore.getAllCustomers());
-  } catch (err) {
-    console.error("Failed to load customers:", err);
-    res.status(500).json({ error: "Could not load customers" });
-  }
-});
+app.get(
+  "/api/admin/customers",
+  requireRole("admin"),
+  requirePermission("view_customers"),
+  async (_req, res) => {
+    try {
+      res.json(await userStore.getAllCustomers());
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+      res.status(500).json({ error: "Could not load customers" });
+    }
+  },
+);
 
 app.put(
   "/api/admin/customers/:id/status",
   requireRole("admin"),
+  requirePermission("manage_customers"),
   async (req, res) => {
     const { status } = req.body || {};
     try {
@@ -384,6 +480,7 @@ app.put(
 app.delete(
   "/api/admin/customers/:id",
   requireRole("admin"),
+  requirePermission("manage_customers"),
   async (req, res) => {
     try {
       const ok = await userStore.deleteCustomer(req.params.id);
@@ -396,13 +493,19 @@ app.delete(
   },
 );
 
-app.get("/api/admin/orders", requireRole("admin"), async (_req, res) => {
-  res.json(await orderStore.getAllOrders());
-});
+app.get(
+  "/api/admin/orders",
+  requireRole("admin"),
+  requirePermission("view_orders"),
+  async (_req, res) => {
+    res.json(await orderStore.getAllOrders());
+  },
+);
 
 app.put(
   "/api/admin/orders/:id/status",
   requireRole("admin"),
+  requirePermission("edit_orders"),
   async (req, res) => {
     const { status } = req.body || {};
     if (!status) return res.status(400).json({ error: "status is required" });
@@ -555,6 +658,131 @@ app.delete(
       console.error("DELETE /api/cart/:productId error:", err);
       res.status(500).json({ error: "Could not update cart" });
     }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Admin RBAC — roles and team management
+// ---------------------------------------------------------------------------
+
+app.get("/api/admin/roles", requireRole("admin"), async (_req, res) => {
+  try {
+    res.json(await teamStore.getRoles());
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Could not load roles" });
+  }
+});
+
+app.post(
+  "/api/admin/roles",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const { name, permissions } = req.body || {};
+    if (!name) return res.status(400).json({ error: "name is required" });
+    try {
+      res.status(201).json(await teamStore.createRole(name, permissions || {}));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+);
+
+app.put(
+  "/api/admin/roles/:id",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const { name, permissions } = req.body || {};
+    try {
+      const updated = await teamStore.updateRole(
+        req.params.id,
+        name,
+        permissions,
+      );
+      if (!updated) return res.status(404).json({ error: "Role not found" });
+      res.json(updated);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+);
+
+app.delete(
+  "/api/admin/roles/:id",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const ok = await teamStore.deleteRole(req.params.id);
+    if (!ok) return res.status(404).json({ error: "Role not found" });
+    res.status(204).end();
+  },
+);
+
+app.get(
+  "/api/admin/team",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (_req, res) => {
+    try {
+      res.json(await teamStore.getAdminUsers());
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ error: "Could not load team" });
+    }
+  },
+);
+
+app.post(
+  "/api/admin/team",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const { name, email, password, roleId } = req.body || {};
+    if (!name || !email || !password)
+      return res
+        .status(400)
+        .json({ error: "name, email and password are required" });
+    try {
+      res
+        .status(201)
+        .json(await teamStore.createAdminUser(name, email, password, roleId));
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+);
+
+app.put(
+  "/api/admin/team/:id",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const { name, email, roleId, isActive } = req.body || {};
+    try {
+      const updated = await teamStore.updateAdminUser(req.params.id, {
+        name,
+        email,
+        roleId,
+        isActive,
+      });
+      if (!updated) return res.status(404).json({ error: "User not found" });
+      res.json(updated);
+    } catch (err) {
+      res.status(400).json({ error: err.message });
+    }
+  },
+);
+
+app.delete(
+  "/api/admin/team/:id",
+  requireRole("admin"),
+  requireSuperAdmin,
+  async (req, res) => {
+    const ok = await teamStore.deleteAdminUser(req.params.id);
+    if (!ok) return res.status(404).json({ error: "User not found" });
+    res.status(204).end();
   },
 );
 
