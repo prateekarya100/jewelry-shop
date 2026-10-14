@@ -661,7 +661,24 @@ app.post(
       if (!order) return res.status(404).json({ error: "Order not found" });
 
       const result = await shiprocket.createShipment(order);
-      res.json(result);
+
+      // Save shipment details to database
+      await dbQuery(
+        `UPDATE orders
+         SET shipment_id = $1, awb_code = $2, courier_name = $3, is_test = $4, updated_at = now()
+         WHERE id = $5`,
+        [
+          result.shipment_id,
+          result.awb_code,
+          result.courier_name,
+          result.is_test || false,
+          req.params.id,
+        ],
+      );
+
+      // Return updated order with shipment info
+      const updatedOrder = await orderStore.getOrderById(req.params.id);
+      res.json({ success: true, shipment: result, order: updatedOrder });
     } catch (err) {
       console.error("Failed to create shipment:", err);
       res.status(400).json({ error: err.message });

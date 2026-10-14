@@ -1,12 +1,12 @@
-import { query, withTransaction } from './db.js';
-import { decrementStockForOrder, restoreStockForOrder } from './products.js';
+import { query, withTransaction } from "./db.js";
+import { decrementStockForOrder, restoreStockForOrder } from "./products.js";
 
 /** Professional, readable, sortable order IDs — e.g. ORD2509054821. */
 export function generateOrderId() {
   const d = new Date();
   const y = String(d.getFullYear()).slice(2);
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
   const seq = Math.floor(1000 + Math.random() * 9000);
   return `ORD${y}${m}${day}${seq}`;
 }
@@ -31,12 +31,31 @@ function toApiShape(row, items) {
     total: Number(row.total),
     date: row.created_at,
     items: items.map((i) => ({
-      productId: i.product_id, title: i.title, qty: i.qty, unitPrice: Number(i.unit_price),
+      productId: i.product_id,
+      title: i.title,
+      qty: i.qty,
+      unitPrice: Number(i.unit_price),
     })),
+    // Shipment tracking fields
+    shipmentId: row.shipment_id || null,
+    awbCode: row.awb_code || null,
+    carrier: row.courier_name || null,
+    trackingUrl: row.tracking_url || null,
+    isTest: row.is_test || false,
   };
 }
 
-export async function addOrder({ id, userId, customer, paymentMethod, paymentRef, status, fulfillmentStatus, total, items }) {
+export async function addOrder({
+  id,
+  userId,
+  customer,
+  paymentMethod,
+  paymentRef,
+  status,
+  fulfillmentStatus,
+  total,
+  items,
+}) {
   const orderId = id || generateOrderId();
 
   // Everything below happens as one atomic transaction: if stock runs out
@@ -53,15 +72,26 @@ export async function addOrder({ id, userId, customer, paymentMethod, paymentRef
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
        ON CONFLICT (id) DO NOTHING`,
       [
-        orderId, userId || null, customer.name, customer.email || null, customer.phone || null,
-        customer.address || null, customer.city || null, customer.state || null, customer.pincode || null,
-        paymentMethod, paymentRef || null, status, fulfillmentStatus || 'confirmed', total,
-      ]
+        orderId,
+        userId || null,
+        customer.name,
+        customer.email || null,
+        customer.phone || null,
+        customer.address || null,
+        customer.city || null,
+        customer.state || null,
+        customer.pincode || null,
+        paymentMethod,
+        paymentRef || null,
+        status,
+        fulfillmentStatus || "confirmed",
+        total,
+      ],
     );
     for (const item of items) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, title, qty, unit_price) VALUES ($1,$2,$3,$4,$5)`,
-        [orderId, item.productId, item.title, item.qty, item.unitPrice]
+        [orderId, item.productId, item.title, item.qty, item.unitPrice],
       );
     }
   });
@@ -72,27 +102,40 @@ export async function addOrder({ id, userId, customer, paymentMethod, paymentRef
 export async function getOrderById(id) {
   const { rows } = await query(`SELECT * FROM orders WHERE id = $1`, [id]);
   if (!rows[0]) return null;
-  const { rows: items } = await query(`SELECT * FROM order_items WHERE order_id = $1`, [id]);
+  const { rows: items } = await query(
+    `SELECT * FROM order_items WHERE order_id = $1`,
+    [id],
+  );
   return toApiShape(rows[0], items);
 }
 
 export async function updateOrderStatus(id, fulfillmentStatus) {
   return withTransaction(async (client) => {
-    const { rows: existingRows } = await client.query('SELECT fulfillment_status FROM orders WHERE id = $1', [id]);
+    const { rows: existingRows } = await client.query(
+      "SELECT fulfillment_status FROM orders WHERE id = $1",
+      [id],
+    );
     if (!existingRows[0]) return null;
-    const wasAlreadyCancelled = existingRows[0].fulfillment_status === 'cancelled';
+    const wasAlreadyCancelled =
+      existingRows[0].fulfillment_status === "cancelled";
 
     const { rows } = await client.query(
       `UPDATE orders SET fulfillment_status = $1, updated_at = now() WHERE id = $2 RETURNING *`,
-      [fulfillmentStatus, id]
+      [fulfillmentStatus, id],
     );
-    const { rows: items } = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [id]);
+    const { rows: items } = await client.query(
+      `SELECT * FROM order_items WHERE order_id = $1`,
+      [id],
+    );
 
     // Restore stock exactly once, only on the transition INTO cancelled —
     // never twice if an order is somehow cancelled more than once, and
     // never on any other status change.
-    if (fulfillmentStatus === 'cancelled' && !wasAlreadyCancelled) {
-      await restoreStockForOrder(client, items.map((i) => ({ productId: i.product_id, qty: i.qty })));
+    if (fulfillmentStatus === "cancelled" && !wasAlreadyCancelled) {
+      await restoreStockForOrder(
+        client,
+        items.map((i) => ({ productId: i.product_id, qty: i.qty })),
+      );
     }
 
     return toApiShape(rows[0], items);
@@ -100,7 +143,9 @@ export async function updateOrderStatus(id, fulfillmentStatus) {
 }
 
 export async function getAllOrders() {
-  const { rows: orders } = await query(`SELECT * FROM orders ORDER BY created_at DESC`);
+  const { rows: orders } = await query(
+    `SELECT * FROM orders ORDER BY created_at DESC`,
+  );
   const { rows: allItems } = await query(`SELECT * FROM order_items`);
   const itemsByOrder = {};
   for (const item of allItems) {
@@ -118,7 +163,7 @@ export async function getOrdersFor({ userId, phone, email }) {
         OR (customer_phone IS NOT NULL AND customer_phone = $2)
         OR (customer_email IS NOT NULL AND lower(customer_email) = lower($3))
      ORDER BY created_at DESC`,
-    [userId || null, phone || null, email || null]
+    [userId || null, phone || null, email || null],
   );
   const { rows: allItems } = await query(`SELECT * FROM order_items`);
   const itemsByOrder = {};
