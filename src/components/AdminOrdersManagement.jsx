@@ -29,6 +29,7 @@ import {
   Visibility as ViewIcon,
   LocalShipping as ShippingIcon,
   Close as CancelIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import paymentConfig from "../config/payment.js";
 
@@ -66,6 +67,7 @@ const AdminOrdersManagement = () => {
       );
       const data = await response.json();
       setOrders(Array.isArray(data) ? data : []);
+      setError("");
     } catch (err) {
       setError("Failed to fetch orders");
       console.error("Fetch orders error:", err);
@@ -99,9 +101,11 @@ const AdminOrdersManagement = () => {
       if (response.ok) {
         const shipment = data.shipment || data;
         const testLabel = shipment.is_test ? " (🧪 TEST)" : "";
-        setSuccess(`Shipment created!${testLabel} AWB: ${shipment.awb_code}`);
+        setSuccess(
+          `✅ Shipment created!${testLabel}\nAWB: ${shipment.awb_code}`,
+        );
 
-        // Update order in list
+        // Update order in list AND selected order
         const updatedOrder = data.order || selectedOrder;
         setOrders(
           orders.map((order) =>
@@ -109,17 +113,18 @@ const AdminOrdersManagement = () => {
           ),
         );
 
+        // Update selectedOrder immediately so View Details dialog shows new shipment info
         setSelectedOrder(updatedOrder);
 
-        // Close dialog after 3 seconds
+        // Keep dialog open for 3 seconds so user sees the success message
         setTimeout(() => {
           setOpenShipmentDialog(false);
         }, 3000);
       } else {
-        setError(data.message || data.error || "Failed to create shipment");
+        setError(`❌ Failed: ${data.message || data.error || "Unknown error"}`);
       }
     } catch (err) {
-      setError(err.message || "Failed to create shipment");
+      setError(`❌ Error: ${err.message}`);
       console.error("Create shipment error:", err);
     } finally {
       setShipmentLoading(false);
@@ -141,16 +146,16 @@ const AdminOrdersManagement = () => {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("priyasafashion_admin_token")}`,
+            Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
           },
-          body: JSON.stringify({ status: "cancelled" }),
+          body: JSON.stringify({ fulfillmentStatus: "cancelled" }),
         },
       );
 
       const data = await response.json();
 
       if (response.ok) {
-        setSuccess("Order cancelled successfully!");
+        setSuccess("✅ Order cancelled successfully!");
 
         // Update order in list
         const updatedOrder = data;
@@ -167,10 +172,12 @@ const AdminOrdersManagement = () => {
           setOpenCancelDialog(false);
         }, 2000);
       } else {
-        setError(data.message || data.error || "Failed to cancel order");
+        setError(
+          `❌ Failed: ${data.message || data.error || "Failed to cancel"}`,
+        );
       }
     } catch (err) {
-      setError(err.message || "Failed to cancel order");
+      setError(`❌ Error: ${err.message}`);
       console.error("Cancel order error:", err);
     } finally {
       setCancelLoading(false);
@@ -191,13 +198,20 @@ const AdminOrdersManagement = () => {
   const getStatusColor = (status) => {
     const colors = {
       confirmed: "info",
+      "confirmed-cod": "info",
       packed: "warning",
       shipped: "success",
       in_transit: "info",
       out_for_delivery: "primary",
       delivered: "success",
+      cancelled: "error",
     };
     return colors[status] || "default";
+  };
+
+  // Check if shipment can be created
+  const canCreateShipment = (order) => {
+    return !order.shipmentId && order.fulfillmentStatus !== "cancelled";
   };
 
   // Filter orders
@@ -213,24 +227,49 @@ const AdminOrdersManagement = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Header */}
-      <Box sx={{ mb: 4 }}>
-        <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
-          📋 Manage Orders
-        </Typography>
-        <Typography variant="body2" color="textSecondary">
-          View, create shipments, and track orders
-        </Typography>
+      {/* Header with Refresh */}
+      <Box
+        sx={{
+          mb: 4,
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+        }}
+      >
+        <Box>
+          <Typography variant="h4" sx={{ mb: 2, fontWeight: "bold" }}>
+            📋 Manage Orders
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            View, create shipments, and track orders
+          </Typography>
+        </Box>
+        <Button
+          variant="outlined"
+          startIcon={<RefreshIcon />}
+          onClick={fetchOrders}
+          disabled={loading}
+        >
+          Refresh
+        </Button>
       </Box>
 
       {/* Alerts */}
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError("")}>
+        <Alert
+          severity="error"
+          sx={{ mb: 3, whiteSpace: "pre-line" }}
+          onClose={() => setError("")}
+        >
           {error}
         </Alert>
       )}
       {success && (
-        <Alert severity="success" sx={{ mb: 3 }} onClose={() => setSuccess("")}>
+        <Alert
+          severity="success"
+          sx={{ mb: 3, whiteSpace: "pre-line" }}
+          onClose={() => setSuccess("")}
+        >
           {success}
         </Alert>
       )}
@@ -257,11 +296,13 @@ const AdminOrdersManagement = () => {
             >
               <option value="all">All Orders</option>
               <option value="confirmed">Confirmed</option>
+              <option value="confirmed-cod">Confirmed (COD)</option>
               <option value="packed">Packed</option>
               <option value="shipped">Shipped</option>
               <option value="in_transit">In Transit</option>
               <option value="out_for_delivery">Out for Delivery</option>
               <option value="delivered">Delivered</option>
+              <option value="cancelled">Cancelled</option>
             </TextField>
           </Grid>
         </Grid>
@@ -337,9 +378,9 @@ const AdminOrdersManagement = () => {
                       <Box>
                         <Typography
                           variant="caption"
-                          sx={{ fontWeight: "bold" }}
+                          sx={{ fontWeight: "bold", color: "green" }}
                         >
-                          {order.awbCode}
+                          ✅ {order.awbCode}
                         </Typography>
                         <Typography
                           variant="caption"
@@ -350,8 +391,8 @@ const AdminOrdersManagement = () => {
                         </Typography>
                       </Box>
                     ) : (
-                      <Typography variant="caption" color="textSecondary">
-                        Not created
+                      <Typography variant="caption" color="error">
+                        ❌ Not created
                       </Typography>
                     )}
                   </TableCell>
@@ -367,20 +408,19 @@ const AdminOrdersManagement = () => {
                     >
                       <ViewIcon fontSize="small" />
                     </IconButton>
-                    {order.fulfillmentStatus !== "shipped" &&
-                      !order.shipmentId && (
-                        <IconButton
-                          size="small"
-                          color="primary"
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setOpenShipmentDialog(true);
-                          }}
-                          title="Create Shipment"
-                        >
-                          <ShippingIcon fontSize="small" />
-                        </IconButton>
-                      )}
+                    {canCreateShipment(order) && (
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={() => {
+                          setSelectedOrder(order);
+                          setOpenShipmentDialog(true);
+                        }}
+                        title="Create Shipment"
+                      >
+                        <ShippingIcon fontSize="small" />
+                      </IconButton>
+                    )}
                     {order.fulfillmentStatus !== "cancelled" &&
                       order.fulfillmentStatus !== "delivered" && (
                         <IconButton
@@ -410,7 +450,7 @@ const AdminOrdersManagement = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Order Details</DialogTitle>
+        <DialogTitle>📦 Order Details</DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {selectedOrder && (
             <Box>
@@ -455,7 +495,7 @@ const AdminOrdersManagement = () => {
                         variant="subtitle2"
                         sx={{ fontWeight: "bold", mb: 1 }}
                       >
-                        Customer Details
+                        👤 Customer Details
                       </Typography>
                       <Typography variant="body2">
                         <strong>{selectedOrder.customer?.name}</strong>
@@ -494,35 +534,47 @@ const AdminOrdersManagement = () => {
                         {selectedOrder.paymentMethod?.toUpperCase()}
                       </Typography>
                     </Grid>
-                    {selectedOrder.shipmentId && (
-                      <>
-                        <Grid item xs={12}>
-                          <Divider />
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" color="textSecondary">
-                            Shipment ID
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: "bold" }}
-                          >
+
+                    {/* Shipment Section */}
+                    <Grid item xs={12}>
+                      <Divider />
+                    </Grid>
+                    <Grid item xs={12}>
+                      <Typography
+                        variant="subtitle2"
+                        sx={{ fontWeight: "bold", mb: 1 }}
+                      >
+                        🚚 Shipment Details
+                      </Typography>
+                      {selectedOrder.shipmentId ? (
+                        <>
+                          <Typography variant="body2">
+                            <strong>Shipment ID:</strong>{" "}
                             {selectedOrder.shipmentId}
                           </Typography>
-                        </Grid>
-                        <Grid item xs={6}>
-                          <Typography variant="caption" color="textSecondary">
-                            AWB Code
+                          <Typography variant="body2">
+                            <strong>AWB Code:</strong> {selectedOrder.awbCode}
                           </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{ fontWeight: "bold" }}
-                          >
-                            {selectedOrder.awbCode}
+                          <Typography variant="body2">
+                            <strong>Courier:</strong> {selectedOrder.carrier}
                           </Typography>
-                        </Grid>
-                      </>
-                    )}
+                          {selectedOrder.trackingUrl && (
+                            <Button
+                              size="small"
+                              href={selectedOrder.trackingUrl}
+                              target="_blank"
+                              sx={{ mt: 1 }}
+                            >
+                              📍 Track Order
+                            </Button>
+                          )}
+                        </>
+                      ) : (
+                        <Alert severity="warning" sx={{ mt: 1 }}>
+                          No shipment created yet
+                        </Alert>
+                      )}
+                    </Grid>
                   </Grid>
                 </CardContent>
               </Card>
@@ -530,6 +582,19 @@ const AdminOrdersManagement = () => {
           )}
         </DialogContent>
         <DialogActions>
+          {selectedOrder && canCreateShipment(selectedOrder) && (
+            <Button
+              variant="contained"
+              color="primary"
+              onClick={() => {
+                setOpenViewDialog(false);
+                setOpenShipmentDialog(true);
+              }}
+              startIcon={<ShippingIcon />}
+            >
+              Create Shipment
+            </Button>
+          )}
           <Button onClick={() => setOpenViewDialog(false)}>Close</Button>
         </DialogActions>
       </Dialog>
@@ -537,11 +602,11 @@ const AdminOrdersManagement = () => {
       {/* Create Shipment Dialog */}
       <Dialog
         open={openShipmentDialog}
-        onClose={() => setOpenShipmentDialog(false)}
+        onClose={() => !shipmentLoading && setOpenShipmentDialog(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Create Shipment</DialogTitle>
+        <DialogTitle>🚚 Create Shipment</DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {selectedOrder && (
             <Box>
@@ -550,18 +615,24 @@ const AdminOrdersManagement = () => {
               </Alert>
               <Card>
                 <CardContent>
-                  <Typography variant="body2">
-                    <strong>Customer:</strong> {selectedOrder.customer?.name}
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>👤 Customer:</strong> {selectedOrder.customer?.name}
                   </Typography>
-                  <Typography variant="body2">
-                    <strong>Amount:</strong> ₹
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>💰 Amount:</strong> ₹
                     {parseFloat(selectedOrder.total).toFixed(2)}
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Delivery Address:</strong>
+                  <Typography
+                    variant="body2"
+                    sx={{ mb: 1, fontWeight: "bold" }}
+                  >
+                    📍 Delivery Address:
                   </Typography>
-                  <Typography variant="caption">
-                    {selectedOrder.customer?.address},{" "}
+                  <Typography
+                    variant="caption"
+                    sx={{ display: "block", pl: 2 }}
+                  >
+                    {selectedOrder.customer?.address},<br />
                     {selectedOrder.customer?.city},{" "}
                     {selectedOrder.customer?.state}{" "}
                     {selectedOrder.customer?.pincode}
@@ -598,11 +669,11 @@ const AdminOrdersManagement = () => {
       {/* Cancel Order Dialog */}
       <Dialog
         open={openCancelDialog}
-        onClose={() => setOpenCancelDialog(false)}
+        onClose={() => !cancelLoading && setOpenCancelDialog(false)}
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>Cancel Order</DialogTitle>
+        <DialogTitle>❌ Cancel Order</DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {selectedOrder && (
             <Box>
@@ -612,21 +683,21 @@ const AdminOrdersManagement = () => {
               </Alert>
               {selectedOrder.shipmentId && (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  This order has a shipment. The shipment will be automatically
-                  cancelled on ShipRocket.
+                  ⚠️ This order has a shipment. The shipment will be
+                  automatically cancelled on ShipRocket.
                 </Alert>
               )}
               <Card>
                 <CardContent>
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>Customer:</strong> {selectedOrder.customer?.name}
                   </Typography>
-                  <Typography variant="body2">
+                  <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>Amount:</strong> ₹
                     {parseFloat(selectedOrder.total).toFixed(2)}
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 1 }}>
-                    <strong>Stock will be restored to inventory</strong>
+                  <Typography variant="body2" sx={{ mt: 1, color: "green" }}>
+                    ✅ <strong>Stock will be restored to inventory</strong>
                   </Typography>
                 </CardContent>
               </Card>
