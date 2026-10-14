@@ -49,7 +49,7 @@ const AdminOrdersManagement = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch orders
+  // Fetch orders on mount
   useEffect(() => {
     fetchOrders();
   }, []);
@@ -63,28 +63,44 @@ const AdminOrdersManagement = () => {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
           },
-        },
+        }
       );
       const data = await response.json();
+      console.log("✅ Orders fetched:", data);
       setOrders(Array.isArray(data) ? data : []);
       setError("");
     } catch (err) {
+      console.error("❌ Fetch error:", err);
       setError("Failed to fetch orders");
-      console.error("Fetch orders error:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  // Check if shipment can be created
+  const canCreateShipment = (order) => {
+    if (!order) return false;
+    const hasNoShipment = !order.shipmentId;
+    const isNotCancelled = order.fulfillmentStatus !== "cancelled";
+    const canCreate = hasNoShipment && isNotCancelled;
+    
+    console.log(`📦 Order ${order.id}: shipmentId=${order.shipmentId}, status=${order.fulfillmentStatus}, canCreate=${canCreate}`);
+    return canCreate;
+  };
+
   // Create shipment
   const handleCreateShipment = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) {
+      setError("❌ No order selected");
+      return;
+    }
 
     setShipmentLoading(true);
     setError("");
     setSuccess("");
 
     try {
+      console.log(`🚀 Creating shipment for order: ${selectedOrder.id}`);
       const response = await fetch(
         `${paymentConfig.backendBaseUrl}/api/admin/orders/${selectedOrder.id}/create-shipment`,
         {
@@ -93,30 +109,31 @@ const AdminOrdersManagement = () => {
             "Content-Type": "application/json",
             Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
           },
-        },
+        }
       );
 
       const data = await response.json();
+      console.log("📝 Response:", data);
 
       if (response.ok) {
         const shipment = data.shipment || data;
         const testLabel = shipment.is_test ? " (🧪 TEST)" : "";
         setSuccess(
-          `✅ Shipment created!${testLabel}\nAWB: ${shipment.awb_code}`,
+          `✅ Shipment created!${testLabel}\nAWB: ${shipment.awb_code}`
         );
 
-        // Update order in list AND selected order
+        // Update order in list
         const updatedOrder = data.order || selectedOrder;
         setOrders(
           orders.map((order) =>
-            order.id === selectedOrder.id ? updatedOrder : order,
-          ),
+            order.id === selectedOrder.id ? updatedOrder : order
+          )
         );
 
-        // Update selectedOrder immediately so View Details dialog shows new shipment info
+        // Update selected order
         setSelectedOrder(updatedOrder);
 
-        // Keep dialog open for 3 seconds so user sees the success message
+        // Close dialog after 3 seconds
         setTimeout(() => {
           setOpenShipmentDialog(false);
         }, 3000);
@@ -124,14 +141,14 @@ const AdminOrdersManagement = () => {
         setError(`❌ Failed: ${data.message || data.error || "Unknown error"}`);
       }
     } catch (err) {
+      console.error("❌ Error:", err);
       setError(`❌ Error: ${err.message}`);
-      console.error("Create shipment error:", err);
     } finally {
       setShipmentLoading(false);
     }
   };
 
-  // Cancel order and shipment
+  // Cancel order
   const handleCancelOrder = async () => {
     if (!selectedOrder) return;
 
@@ -149,7 +166,7 @@ const AdminOrdersManagement = () => {
             Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
           },
           body: JSON.stringify({ fulfillmentStatus: "cancelled" }),
-        },
+        }
       );
 
       const data = await response.json();
@@ -157,28 +174,26 @@ const AdminOrdersManagement = () => {
       if (response.ok) {
         setSuccess("✅ Order cancelled successfully!");
 
-        // Update order in list
         const updatedOrder = data;
         setOrders(
           orders.map((order) =>
-            order.id === selectedOrder.id ? updatedOrder : order,
-          ),
+            order.id === selectedOrder.id ? updatedOrder : order
+          )
         );
 
         setSelectedOrder(updatedOrder);
 
-        // Close dialog after 2 seconds
         setTimeout(() => {
           setOpenCancelDialog(false);
         }, 2000);
       } else {
         setError(
-          `❌ Failed: ${data.message || data.error || "Failed to cancel"}`,
+          `❌ Failed: ${data.message || data.error || "Failed to cancel"}`
         );
       }
     } catch (err) {
+      console.error("❌ Cancel error:", err);
       setError(`❌ Error: ${err.message}`);
-      console.error("Cancel order error:", err);
     } finally {
       setCancelLoading(false);
     }
@@ -207,11 +222,6 @@ const AdminOrdersManagement = () => {
       cancelled: "error",
     };
     return colors[status] || "default";
-  };
-
-  // Check if shipment can be created
-  const canCreateShipment = (order) => {
-    return !order.shipmentId && order.fulfillmentStatus !== "cancelled";
   };
 
   // Filter orders
@@ -401,6 +411,7 @@ const AdminOrdersManagement = () => {
                     <IconButton
                       size="small"
                       onClick={() => {
+                        console.log("👁️ Viewing order:", order.id);
                         setSelectedOrder(order);
                         setOpenViewDialog(true);
                       }}
@@ -413,6 +424,7 @@ const AdminOrdersManagement = () => {
                         size="small"
                         color="primary"
                         onClick={() => {
+                          console.log("🚚 Creating shipment for:", order.id);
                           setSelectedOrder(order);
                           setOpenShipmentDialog(true);
                         }}
@@ -472,19 +484,9 @@ const AdminOrdersManagement = () => {
                       <Box sx={{ display: "flex", gap: 1, mt: 0.5 }}>
                         <Chip
                           label={selectedOrder.fulfillmentStatus?.toUpperCase()}
-                          color={getStatusColor(
-                            selectedOrder.fulfillmentStatus,
-                          )}
+                          color={getStatusColor(selectedOrder.fulfillmentStatus)}
                           size="small"
                         />
-                        {selectedOrder.isTest && (
-                          <Chip
-                            label="🧪 TEST"
-                            size="small"
-                            color="warning"
-                            variant="outlined"
-                          />
-                        )}
                       </Box>
                     </Grid>
                     <Grid item xs={12}>
