@@ -24,6 +24,7 @@ import {
   Card,
   CardContent,
   Divider,
+  Tooltip,
 } from "@mui/material";
 import {
   Visibility as ViewIcon,
@@ -49,49 +50,148 @@ const AdminOrdersManagement = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [searchTerm, setSearchTerm] = useState("");
 
-  // Fetch orders on mount
+  // Fetch orders on component mount
   useEffect(() => {
+    console.log("🔄 Component mounted, fetching orders...");
     fetchOrders();
   }, []);
 
+  // Fetch all orders from backend
   const fetchOrders = async () => {
     setLoading(true);
+    setError("");
+    console.log("📡 Fetching orders from API...");
+    
     try {
+      const token = localStorage.getItem("priyasafashion_customer_token");
+      console.log("🔑 Token:", token ? "Present" : "Missing");
+      
       const response = await fetch(
         `${paymentConfig.backendBaseUrl}/api/admin/orders`,
         {
           headers: {
-            Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
+      
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      
       const data = await response.json();
-      console.log("✅ Orders fetched:", data);
+      console.log("✅ Orders received from API:", data);
+      console.log(`📊 Total orders: ${Array.isArray(data) ? data.length : 0}`);
+      
+      // Log each order's shipment status
+      if (Array.isArray(data)) {
+        data.forEach((order) => {
+          console.log(
+            `   📦 ${order.id}: shipmentId=${order.shipmentId || "null"}, status=${order.fulfillmentStatus}`
+          );
+        });
+      }
+      
       setOrders(Array.isArray(data) ? data : []);
-      setError("");
     } catch (err) {
-      console.error("❌ Fetch error:", err);
-      setError("Failed to fetch orders");
+      console.error("❌ Error fetching orders:", err);
+      setError(`Failed to fetch orders: ${err.message}`);
     } finally {
       setLoading(false);
     }
   };
 
-  // Check if shipment can be created
+  // ⭐ CRITICAL FUNCTION: Determine if shipment can be created for an order
   const canCreateShipment = (order) => {
-    if (!order) return false;
+    if (!order) {
+      console.warn("⚠️ canCreateShipment called with no order");
+      return false;
+    }
+
     const hasNoShipment = !order.shipmentId;
     const isNotCancelled = order.fulfillmentStatus !== "cancelled";
-    const canCreate = hasNoShipment && isNotCancelled;
-    
-    console.log(`📦 Order ${order.id}: shipmentId=${order.shipmentId}, status=${order.fulfillmentStatus}, canCreate=${canCreate}`);
-    return canCreate;
+    const result = hasNoShipment && isNotCancelled;
+
+    console.log(
+      `🔍 canCreateShipment(${order.id}): shipmentId=${order.shipmentId || "null"}, fulfillmentStatus=${order.fulfillmentStatus}, result=${result}`
+    );
+
+    return result;
   };
 
-  // Create shipment
+  // Render action buttons for table row
+  const renderActionButtons = (order) => {
+    console.log(`🎨 Rendering actions for order ${order.id}`);
+    
+    const canCreate = canCreateShipment(order);
+    console.log(`   canCreate=${canCreate}`);
+
+    return (
+      <Box sx={{ display: "flex", gap: 1, justifyContent: "center" }}>
+        {/* View Button - Always visible */}
+        <Tooltip title="View Details">
+          <IconButton
+            size="small"
+            variant="outlined"
+            onClick={() => {
+              console.log("👁️ Click: View order", order.id);
+              setSelectedOrder(order);
+              setOpenViewDialog(true);
+            }}
+          >
+            <ViewIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+
+        {/* Create Shipment Button - ONLY if canCreate is true */}
+        {canCreate && (
+          <Tooltip title="Create Shipment">
+            <IconButton
+              size="small"
+              color="primary"
+              onClick={() => {
+                console.log("🚚 Click: Create shipment for", order.id);
+                setSelectedOrder(order);
+                setOpenShipmentDialog(true);
+              }}
+              sx={{
+                backgroundColor: "rgba(33, 150, 243, 0.1)",
+                "&:hover": {
+                  backgroundColor: "rgba(33, 150, 243, 0.2)",
+                },
+              }}
+            >
+              <ShippingIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        )}
+
+        {/* Cancel Button - if order not cancelled or delivered */}
+        {order.fulfillmentStatus !== "cancelled" &&
+          order.fulfillmentStatus !== "delivered" && (
+            <Tooltip title="Cancel Order">
+              <IconButton
+                size="small"
+                color="error"
+                onClick={() => {
+                  console.log("❌ Click: Cancel order", order.id);
+                  setSelectedOrder(order);
+                  setOpenCancelDialog(true);
+                }}
+              >
+                <CancelIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+      </Box>
+    );
+  };
+
+  // Create shipment via API
   const handleCreateShipment = async () => {
     if (!selectedOrder) {
-      setError("❌ No order selected");
+      console.error("❌ No order selected for shipment creation");
+      setError("No order selected");
       return;
     }
 
@@ -101,69 +201,83 @@ const AdminOrdersManagement = () => {
 
     try {
       console.log(`🚀 Creating shipment for order: ${selectedOrder.id}`);
+      const token = localStorage.getItem("priyasafashion_customer_token");
+      
       const response = await fetch(
         `${paymentConfig.backendBaseUrl}/api/admin/orders/${selectedOrder.id}/create-shipment`,
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
+            Authorization: `Bearer ${token}`,
           },
         }
       );
 
       const data = await response.json();
-      console.log("📝 Response:", data);
+      console.log("📝 Create shipment response:", data);
 
       if (response.ok) {
         const shipment = data.shipment || data;
         const testLabel = shipment.is_test ? " (🧪 TEST)" : "";
+        const awbCode = shipment.awb_code || "N/A";
+        
         setSuccess(
-          `✅ Shipment created!${testLabel}\nAWB: ${shipment.awb_code}`
+          `✅ Shipment created successfully!${testLabel}\nAWB Code: ${awbCode}`
         );
+        console.log(`✅ Shipment created: AWB=${awbCode}`);
 
-        // Update order in list
+        // Update the order in the list
         const updatedOrder = data.order || selectedOrder;
+        console.log("📦 Updated order:", updatedOrder);
+        
         setOrders(
-          orders.map((order) =>
-            order.id === selectedOrder.id ? updatedOrder : order
+          orders.map((ord) =>
+            ord.id === selectedOrder.id ? updatedOrder : ord
           )
         );
-
-        // Update selected order
         setSelectedOrder(updatedOrder);
 
-        // Close dialog after 3 seconds
+        // Close dialog after 2 seconds
         setTimeout(() => {
           setOpenShipmentDialog(false);
-        }, 3000);
+          fetchOrders(); // Refresh to get latest data
+        }, 2000);
       } else {
-        setError(`❌ Failed: ${data.message || data.error || "Unknown error"}`);
+        const errorMsg = data.message || data.error || "Unknown error";
+        console.error("❌ Shipment creation failed:", errorMsg);
+        setError(`Failed to create shipment: ${errorMsg}`);
       }
     } catch (err) {
-      console.error("❌ Error:", err);
-      setError(`❌ Error: ${err.message}`);
+      console.error("❌ Exception during shipment creation:", err);
+      setError(`Error: ${err.message}`);
     } finally {
       setShipmentLoading(false);
     }
   };
 
-  // Cancel order
+  // Cancel order via API
   const handleCancelOrder = async () => {
-    if (!selectedOrder) return;
+    if (!selectedOrder) {
+      console.error("❌ No order selected for cancellation");
+      return;
+    }
 
     setCancelLoading(true);
     setError("");
     setSuccess("");
 
     try {
+      console.log(`❌ Cancelling order: ${selectedOrder.id}`);
+      const token = localStorage.getItem("priyasafashion_customer_token");
+      
       const response = await fetch(
         `${paymentConfig.backendBaseUrl}/api/admin/orders/${selectedOrder.id}/status`,
         {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${localStorage.getItem("priyasafashion_customer_token")}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ fulfillmentStatus: "cancelled" }),
         }
@@ -173,27 +287,27 @@ const AdminOrdersManagement = () => {
 
       if (response.ok) {
         setSuccess("✅ Order cancelled successfully!");
+        console.log("✅ Order cancelled:", data);
 
-        const updatedOrder = data;
         setOrders(
-          orders.map((order) =>
-            order.id === selectedOrder.id ? updatedOrder : order
+          orders.map((ord) =>
+            ord.id === selectedOrder.id ? data : ord
           )
         );
-
-        setSelectedOrder(updatedOrder);
+        setSelectedOrder(data);
 
         setTimeout(() => {
           setOpenCancelDialog(false);
+          fetchOrders();
         }, 2000);
       } else {
-        setError(
-          `❌ Failed: ${data.message || data.error || "Failed to cancel"}`
-        );
+        const errorMsg = data.message || data.error || "Failed to cancel";
+        console.error("❌ Cancel failed:", errorMsg);
+        setError(`Failed to cancel: ${errorMsg}`);
       }
     } catch (err) {
-      console.error("❌ Cancel error:", err);
-      setError(`❌ Error: ${err.message}`);
+      console.error("❌ Exception during cancellation:", err);
+      setError(`Error: ${err.message}`);
     } finally {
       setCancelLoading(false);
     }
@@ -209,7 +323,7 @@ const AdminOrdersManagement = () => {
     });
   };
 
-  // Get status color
+  // Get status color for chip
   const getStatusColor = (status) => {
     const colors = {
       confirmed: "info",
@@ -224,7 +338,7 @@ const AdminOrdersManagement = () => {
     return colors[status] || "default";
   };
 
-  // Filter orders
+  // Filter orders based on status and search term
   const filteredOrders = orders.filter((order) => {
     const matchesStatus =
       filterStatus === "all" || order.fulfillmentStatus === filterStatus;
@@ -237,7 +351,7 @@ const AdminOrdersManagement = () => {
 
   return (
     <Container maxWidth="lg" sx={{ py: 4 }}>
-      {/* Header with Refresh */}
+      {/* Header */}
       <Box
         sx={{
           mb: 4,
@@ -251,7 +365,7 @@ const AdminOrdersManagement = () => {
             📋 Manage Orders
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            View, create shipments, and track orders
+            View, create shipments, and track customer orders
           </Typography>
         </Box>
         <Button
@@ -260,11 +374,11 @@ const AdminOrdersManagement = () => {
           onClick={fetchOrders}
           disabled={loading}
         >
-          Refresh
+          Refresh Orders
         </Button>
       </Box>
 
-      {/* Alerts */}
+      {/* Error & Success Messages */}
       {error && (
         <Alert
           severity="error"
@@ -284,15 +398,16 @@ const AdminOrdersManagement = () => {
         </Alert>
       )}
 
-      {/* Filters */}
+      {/* Filters Section */}
       <Paper sx={{ p: 3, mb: 4 }}>
         <Grid container spacing={2}>
           <Grid item xs={12} sm={6}>
             <TextField
               fullWidth
-              placeholder="Search by Order ID, Customer name, or Email..."
+              placeholder="Search by Order ID, Name, or Email..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
+              size="small"
             />
           </Grid>
           <Grid item xs={12} sm={6}>
@@ -303,6 +418,7 @@ const AdminOrdersManagement = () => {
               value={filterStatus}
               onChange={(e) => setFilterStatus(e.target.value)}
               SelectProps={{ native: true }}
+              size="small"
             >
               <option value="all">All Orders</option>
               <option value="confirmed">Confirmed</option>
@@ -320,30 +436,44 @@ const AdminOrdersManagement = () => {
 
       {/* Orders Table */}
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
           <CircularProgress />
         </Box>
       ) : filteredOrders.length === 0 ? (
         <Alert severity="info">No orders found</Alert>
       ) : (
-        <TableContainer component={Paper}>
+        <TableContainer component={Paper} sx={{ boxShadow: 2 }}>
           <Table>
             <TableHead sx={{ backgroundColor: "#f5f5f5" }}>
               <TableRow>
-                <TableCell sx={{ fontWeight: "bold" }}>Order ID</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Customer</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Total</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Status</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Shipment</TableCell>
-                <TableCell sx={{ fontWeight: "bold" }}>Date</TableCell>
-                <TableCell align="center" sx={{ fontWeight: "bold" }}>
+                <TableCell sx={{ fontWeight: "bold", width: "12%" }}>
+                  Order ID
+                </TableCell>
+                <TableCell sx={{ fontWeight: "bold", width: "20%" }}>
+                  Customer
+                </TableCell>
+                <TableCell sx={{ fontWeight: "bold", width: "8%", textAlign: "right" }}>
+                  Total
+                </TableCell>
+                <TableCell sx={{ fontWeight: "bold", width: "15%" }}>
+                  Status
+                </TableCell>
+                <TableCell sx={{ fontWeight: "bold", width: "20%" }}>
+                  Shipment
+                </TableCell>
+                <TableCell sx={{ fontWeight: "bold", width: "12%" }}>
+                  Date
+                </TableCell>
+                <TableCell
+                  sx={{ fontWeight: "bold", width: "13%", textAlign: "center" }}
+                >
                   Actions
                 </TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
               {filteredOrders.map((order) => (
-                <TableRow key={order.id} hover>
+                <TableRow key={order.id} hover sx={{ "&:hover": { backgroundColor: "#fafafa" } }}>
                   <TableCell>
                     <Typography variant="body2" sx={{ fontWeight: "bold" }}>
                       {order.id}
@@ -359,7 +489,7 @@ const AdminOrdersManagement = () => {
                       </Typography>
                     </Box>
                   </TableCell>
-                  <TableCell>
+                  <TableCell sx={{ textAlign: "right" }}>
                     <Typography variant="body2" sx={{ fontWeight: "bold" }}>
                       ₹{parseFloat(order.total).toFixed(2)}
                     </Typography>
@@ -377,7 +507,6 @@ const AdminOrdersManagement = () => {
                         <Chip
                           label="🧪 TEST"
                           size="small"
-                          color="warning"
                           variant="outlined"
                         />
                       )}
@@ -390,7 +519,7 @@ const AdminOrdersManagement = () => {
                           variant="caption"
                           sx={{ fontWeight: "bold", color: "green" }}
                         >
-                          ✅ {order.awbCode}
+                          ✅ {order.awbCode || "N/A"}
                         </Typography>
                         <Typography
                           variant="caption"
@@ -401,52 +530,18 @@ const AdminOrdersManagement = () => {
                         </Typography>
                       </Box>
                     ) : (
-                      <Typography variant="caption" color="error">
-                        ❌ Not created
+                      <Typography variant="caption" sx={{ color: "red" }}>
+                        ❌ Not Created
                       </Typography>
                     )}
                   </TableCell>
-                  <TableCell>{formatDate(order.date)}</TableCell>
-                  <TableCell align="center">
-                    <IconButton
-                      size="small"
-                      onClick={() => {
-                        console.log("👁️ Viewing order:", order.id);
-                        setSelectedOrder(order);
-                        setOpenViewDialog(true);
-                      }}
-                      title="View Details"
-                    >
-                      <ViewIcon fontSize="small" />
-                    </IconButton>
-                    {canCreateShipment(order) && (
-                      <IconButton
-                        size="small"
-                        color="primary"
-                        onClick={() => {
-                          console.log("🚚 Creating shipment for:", order.id);
-                          setSelectedOrder(order);
-                          setOpenShipmentDialog(true);
-                        }}
-                        title="Create Shipment"
-                      >
-                        <ShippingIcon fontSize="small" />
-                      </IconButton>
-                    )}
-                    {order.fulfillmentStatus !== "cancelled" &&
-                      order.fulfillmentStatus !== "delivered" && (
-                        <IconButton
-                          size="small"
-                          color="error"
-                          onClick={() => {
-                            setSelectedOrder(order);
-                            setOpenCancelDialog(true);
-                          }}
-                          title="Cancel Order"
-                        >
-                          <CancelIcon fontSize="small" />
-                        </IconButton>
-                      )}
+                  <TableCell>
+                    <Typography variant="caption">
+                      {formatDate(order.date)}
+                    </Typography>
+                  </TableCell>
+                  <TableCell sx={{ textAlign: "center" }}>
+                    {renderActionButtons(order)}
                   </TableCell>
                 </TableRow>
               ))}
@@ -536,8 +631,6 @@ const AdminOrdersManagement = () => {
                         {selectedOrder.paymentMethod?.toUpperCase()}
                       </Typography>
                     </Grid>
-
-                    {/* Shipment Section */}
                     <Grid item xs={12}>
                       <Divider />
                     </Grid>
@@ -573,7 +666,7 @@ const AdminOrdersManagement = () => {
                         </>
                       ) : (
                         <Alert severity="warning" sx={{ mt: 1 }}>
-                          No shipment created yet
+                          ⚠️ No shipment created yet
                         </Alert>
                       )}
                     </Grid>
@@ -608,7 +701,7 @@ const AdminOrdersManagement = () => {
         maxWidth="sm"
         fullWidth
       >
-        <DialogTitle>🚚 Create Shipment</DialogTitle>
+        <DialogTitle>🚚 Create Shipment for Order</DialogTitle>
         <DialogContent sx={{ pt: 3 }}>
           {selectedOrder && (
             <Box>
@@ -617,24 +710,32 @@ const AdminOrdersManagement = () => {
               </Alert>
               <Card>
                 <CardContent>
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold", mb: 1 }}>
+                    Order Summary
+                  </Typography>
                   <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>👤 Customer:</strong> {selectedOrder.customer?.name}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>📧 Email:</strong> {selectedOrder.customer?.email}
+                  </Typography>
+                  <Typography variant="body2" sx={{ mb: 1 }}>
+                    <strong>📞 Phone:</strong> {selectedOrder.customer?.phone}
                   </Typography>
                   <Typography variant="body2" sx={{ mb: 1 }}>
                     <strong>💰 Amount:</strong> ₹
                     {parseFloat(selectedOrder.total).toFixed(2)}
                   </Typography>
+                  <Divider sx={{ my: 2 }} />
                   <Typography
                     variant="body2"
-                    sx={{ mb: 1, fontWeight: "bold" }}
+                    sx={{ fontWeight: "bold", mb: 1 }}
                   >
                     📍 Delivery Address:
                   </Typography>
-                  <Typography
-                    variant="caption"
-                    sx={{ display: "block", pl: 2 }}
-                  >
-                    {selectedOrder.customer?.address},<br />
+                  <Typography variant="caption" sx={{ display: "block" }}>
+                    {selectedOrder.customer?.address}
+                    <br />
                     {selectedOrder.customer?.city},{" "}
                     {selectedOrder.customer?.state}{" "}
                     {selectedOrder.customer?.pincode}
@@ -653,6 +754,7 @@ const AdminOrdersManagement = () => {
           </Button>
           <Button
             variant="contained"
+            color="primary"
             onClick={handleCreateShipment}
             disabled={shipmentLoading}
             startIcon={
@@ -685,8 +787,8 @@ const AdminOrdersManagement = () => {
               </Alert>
               {selectedOrder.shipmentId && (
                 <Alert severity="info" sx={{ mb: 2 }}>
-                  ⚠️ This order has a shipment. The shipment will be
-                  automatically cancelled on ShipRocket.
+                  ⚠️ This order has an active shipment which will also be
+                  cancelled.
                 </Alert>
               )}
               <Card>
@@ -698,8 +800,8 @@ const AdminOrdersManagement = () => {
                     <strong>Amount:</strong> ₹
                     {parseFloat(selectedOrder.total).toFixed(2)}
                   </Typography>
-                  <Typography variant="body2" sx={{ mt: 1, color: "green" }}>
-                    ✅ <strong>Stock will be restored to inventory</strong>
+                  <Typography variant="body2" sx={{ mt: 2, color: "green" }}>
+                    ✅ <strong>Stock will be restored</strong>
                   </Typography>
                 </CardContent>
               </Card>
