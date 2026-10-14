@@ -24,6 +24,9 @@ import ContactPage from "./components/ContactPage.jsx";
 import ForgotPasswordPage from "./components/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./components/ResetPasswordPage.jsx";
 import CheckoutPage from "./components/Checkout.jsx";
+import CustomerTrackingPage from "./components/CustomerTrackingPage.jsx";
+import AdminCreateOrderForm from "./components/AdminCreateOrderForm.jsx";
+import AdminOrdersManagement from "./components/AdminOrdersManagement.jsx";
 
 function slideUp(props) {
   return <Slide {...props} direction="up" />;
@@ -171,7 +174,13 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Shop />} />
               <Route path="/admin" element={<AdminRoute />} />
+              <Route path="/admin/orders" element={<AdminOrdersManagement />} />
+              <Route
+                path="/admin/orders/create"
+                element={<AdminCreateOrderForm />}
+              />
               <Route path="/account" element={<AccountRoute />} />
+              <Route path="/tracking" element={<CustomerTrackingPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/terms" element={<TermsPage />} />

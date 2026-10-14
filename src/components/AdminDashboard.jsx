@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -66,6 +67,8 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlin
 import PersonRemoveOutlinedIcon from "@mui/icons-material/PersonRemoveOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import OrderProgressTracker from "./OrderProgressTracker.jsx";
+import AdminCreateOrderForm from "./AdminCreateOrderForm.jsx";
+import AdminOrdersManagement from "./AdminOrdersManagement.jsx";
 import { useStore } from "../context/StoreContext.jsx";
 import { useAdminAuth } from "../context/AdminAuthContext.jsx";
 import { formatINR } from "../utils/storage.js";
@@ -116,6 +119,12 @@ const ALL_NAV = [
   { key: "overview", label: "Overview", icon: DashboardOutlinedIcon },
   { key: "products", label: "Products", icon: Inventory2OutlinedIcon },
   { key: "orders", label: "Orders", icon: ReceiptLongOutlinedIcon },
+  { key: "create-order", label: "Create Order", icon: AddIcon },
+  {
+    key: "manage-orders",
+    label: "Manage Orders",
+    icon: ReceiptLongOutlinedIcon,
+  },
   { key: "customers", label: "Customers", icon: PeopleOutlineIcon },
   { key: "team", label: "Team", icon: GroupsOutlinedIcon },
 ];
@@ -177,6 +186,7 @@ async function api(path, { token, method = "GET", body } = {}) {
 
 export default function AdminDashboard({ onExit }) {
   const { products, orders: localOrders, refreshProducts, notify } = useStore();
+  const navigate = useNavigate();
   const {
     isAdmin,
     login,
@@ -188,6 +198,7 @@ export default function AdminDashboard({ onExit }) {
     logout,
     isSuperAdmin,
     permissions: perms,
+    user,
   } = useAdminAuth();
 
   const NAV = useMemo(
@@ -196,6 +207,8 @@ export default function AdminDashboard({ onExit }) {
         if (item.key === "overview") return true;
         if (item.key === "products") return isSuperAdmin || perms.view_products;
         if (item.key === "orders") return isSuperAdmin || perms.view_orders;
+        if (item.key === "create-order" || item.key === "manage-orders")
+          return isSuperAdmin || perms.view_orders;
         if (item.key === "customers")
           return isSuperAdmin || perms.view_customers;
         if (item.key === "team") return isSuperAdmin;
@@ -754,6 +767,30 @@ export default function AdminDashboard({ onExit }) {
           >
             <Logo size={30} wordmarkSize={17} />
           </Stack>
+
+          {user && (
+            <Box
+              sx={{
+                px: 2.5,
+                mb: 2.5,
+                pb: 2.5,
+                borderBottom: "1px solid rgba(250,241,236,0.2)",
+              }}
+            >
+              <Typography
+                variant="caption"
+                sx={{ color: "rgba(250,241,236,0.7)" }}
+              >
+                Logged in as
+              </Typography>
+              <Typography
+                variant="body2"
+                sx={{ color: "#fff", fontWeight: 600, mt: 0.5 }}
+              >
+                {user.email || user.name || "Admin"}
+              </Typography>
+            </Box>
+          )}
 
           <List sx={{ flex: 1, px: 1.5 }}>
             {NAV.map((item) => (
@@ -1827,6 +1864,10 @@ export default function AdminDashboard({ onExit }) {
         {nav === "team" && isSuperAdmin && (
           <TeamSection token={token} onSessionExpired={handleSessionExpired} />
         )}
+
+        {nav === "create-order" && <AdminCreateOrderForm />}
+
+        {nav === "manage-orders" && <AdminOrdersManagement />}
 
         {nav === "customers" && (
           <Box>

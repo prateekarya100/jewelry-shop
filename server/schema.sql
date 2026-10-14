@@ -67,6 +67,13 @@ CREATE TABLE IF NOT EXISTS orders (
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- ShipRocket integration columns — added for automatic shipment creation
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS shipment_id TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS awb_code TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS tracking_url TEXT;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS is_test BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS courier_name TEXT;
+
 CREATE TABLE IF NOT EXISTS order_items (
   id          SERIAL PRIMARY KEY,
   order_id    TEXT NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
@@ -132,3 +139,12 @@ CREATE TABLE IF NOT EXISTS admin_users (
   is_active     BOOLEAN NOT NULL DEFAULT TRUE,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- ============================================================================
+-- DEFAULT ROLES — auto-created on schema initialization (idempotent)
+-- ============================================================================
+
+-- Default Super Admin role with full permissions
+INSERT INTO admin_roles (name, permissions)
+VALUES ('Super Admin', '{"view_products": true, "edit_products": true, "view_orders": true, "edit_orders": true, "view_customers": true, "manage_customers": true, "manage_team": true, "view_analytics": true, "manage_settings": true}'::jsonb)
+ON CONFLICT (name) DO NOTHING;

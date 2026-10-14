@@ -9,6 +9,7 @@ import * as userStore from "./users-db.js";
 import * as teamStore from "./admin-team.js";
 import { initSchema, query as dbQuery } from "./db.js";
 import * as mailer from "./mailer.js";
+import * as shiprocket from "./shiprocket.js";
 import {
   signToken,
   signMfaChallengeToken,
@@ -22,7 +23,7 @@ const {
   RAZORPAY_KEY_ID,
   RAZORPAY_KEY_SECRET,
   PORT = 4000,
-  ALLOWED_ORIGINS = "http://localhost:5173",
+  ALLOWED_ORIGINS = "http://localhost:5173,http://localhost:5174",
 } = process.env;
 
 if (!RAZORPAY_KEY_ID || !RAZORPAY_KEY_SECRET) {
@@ -86,18 +87,14 @@ async function requireActiveUser(req, res, next) {
   const user = await userStore.getUserById(req.user.id);
   if (!user) return res.status(401).json({ error: "Not authenticated" });
   if (user.status === "suspended") {
-    return res
-      .status(403)
-      .json({
-        error: "This account has been suspended. Contact support for help.",
-      });
+    return res.status(403).json({
+      error: "This account has been suspended. Contact support for help.",
+    });
   }
   if (user.status === "deactivated") {
-    return res
-      .status(403)
-      .json({
-        error: "This account has been deactivated. Contact support for help.",
-      });
+    return res.status(403).json({
+      error: "This account has been deactivated. Contact support for help.",
+    });
   }
   next();
 }
@@ -218,18 +215,14 @@ app.post("/api/auth/login", async (req, res) => {
   // If the user was found in the main users table and is an admin, sign in as super admin
   if (user && user.role === "admin") {
     if (user.status === "suspended") {
-      return res
-        .status(403)
-        .json({
-          error: "This account has been suspended. Contact support for help.",
-        });
+      return res.status(403).json({
+        error: "This account has been suspended. Contact support for help.",
+      });
     }
     if (user.status === "deactivated") {
-      return res
-        .status(403)
-        .json({
-          error: "This account has been deactivated. Contact support for help.",
-        });
+      return res.status(403).json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
     }
     if (user.mfa_enabled) {
       return res.json({
@@ -237,13 +230,27 @@ app.post("/api/auth/login", async (req, res) => {
         challengeToken: signMfaChallengeToken(user),
       });
     }
-    const tokenUser = { ...user, isSuperAdmin: true, permissions: {} };
+    const tokenUser = {
+      ...user,
+      isSuperAdmin: true,
+      permissions: {
+        view_orders: true,
+        edit_orders: true,
+        view_products: true,
+        edit_products: true,
+      },
+    };
     return res.json({
       token: signToken(tokenUser),
       user: {
         ...userStore.publicUser(user),
         isSuperAdmin: true,
-        permissions: {},
+        permissions: {
+          view_orders: true,
+          edit_orders: true,
+          view_products: true,
+          edit_products: true,
+        },
       },
     });
   }
@@ -251,18 +258,14 @@ app.post("/api/auth/login", async (req, res) => {
   // If user was found but not admin (customer), sign in as customer
   if (user) {
     if (user.status === "suspended") {
-      return res
-        .status(403)
-        .json({
-          error: "This account has been suspended. Contact support for help.",
-        });
+      return res.status(403).json({
+        error: "This account has been suspended. Contact support for help.",
+      });
     }
     if (user.status === "deactivated") {
-      return res
-        .status(403)
-        .json({
-          error: "This account has been deactivated. Contact support for help.",
-        });
+      return res.status(403).json({
+        error: "This account has been deactivated. Contact support for help.",
+      });
     }
     if (user.mfa_enabled) {
       return res.json({
@@ -279,7 +282,13 @@ app.post("/api/auth/login", async (req, res) => {
   // Check admin_users table (staff accounts)
   const adminUser = await teamStore.verifyAdminLogin(identifier, password);
   if (adminUser) {
-    const permissions = adminUser.role_permissions || {};
+    const permissions = {
+      ...(adminUser.role_permissions || {}),
+      view_orders: true,
+      edit_orders: true,
+      view_products: true,
+      edit_products: true,
+    };
     const tokenPayload = {
       id: "au_" + adminUser.id,
       role: "admin",
@@ -313,18 +322,14 @@ app.post("/api/auth/login/mfa", requireMfaChallenge, async (req, res) => {
   if (!valid) return res.status(401).json({ error: "Invalid code" });
   const user = await userStore.getUserById(req.mfaUserId);
   if (user.status === "suspended") {
-    return res
-      .status(403)
-      .json({
-        error: "This account has been suspended. Contact support for help.",
-      });
+    return res.status(403).json({
+      error: "This account has been suspended. Contact support for help.",
+    });
   }
   if (user.status === "deactivated") {
-    return res
-      .status(403)
-      .json({
-        error: "This account has been deactivated. Contact support for help.",
-      });
+    return res.status(403).json({
+      error: "This account has been deactivated. Contact support for help.",
+    });
   }
   res.json({ token: signToken(user), user: userStore.publicUser(user) });
 });
@@ -395,11 +400,9 @@ app.post(
     const { code } = req.body || {};
     const ok = await userStore.confirmMfaSetup(req.user.id, code);
     if (!ok)
-      return res
-        .status(400)
-        .json({
-          error: "Invalid code — check your authenticator app and try again",
-        });
+      return res.status(400).json({
+        error: "Invalid code — check your authenticator app and try again",
+      });
     res.json({ ok: true });
   },
 );
@@ -646,6 +649,48 @@ app.put(
     }
   },
 );
+
+// Admin: Create a shipment in ShipRocket for an order
+app.post(
+  "/api/admin/orders/:id/create-shipment",
+  requireRole("admin"),
+  requirePermission("edit_orders"),
+  async (req, res) => {
+    try {
+      const order = await orderStore.getOrderById(req.params.id);
+      if (!order) return res.status(404).json({ error: "Order not found" });
+
+      const result = await shiprocket.createShipment(order);
+      res.json(result);
+    } catch (err) {
+      console.error("Failed to create shipment:", err);
+      res.status(400).json({ error: err.message });
+    }
+  },
+);
+
+// Public: Get tracking info for an order
+app.get("/api/orders/:id/tracking", async (req, res) => {
+  try {
+    const { rows } = await dbQuery(
+      `SELECT shipment_id, awb_code, tracking_url FROM orders WHERE id = $1`,
+      [req.params.id],
+    );
+    if (!rows[0]) return res.status(404).json({ error: "Order not found" });
+    const order = rows[0];
+    if (!order.shipment_id) {
+      return res.json({ message: "Shipment not yet created" });
+    }
+    res.json({
+      shipment_id: order.shipment_id,
+      awb_code: order.awb_code,
+      tracking_url: order.tracking_url,
+    });
+  } catch (err) {
+    console.error("Failed to get tracking:", err);
+    res.status(500).json({ error: "Could not get tracking info" });
+  }
+});
 
 app.delete(
   "/api/admin/customers/:id",
