@@ -58,6 +58,16 @@ export async function addOrder({
 }) {
   const orderId = id || generateOrderId();
 
+  // Check if order already exists (prevent duplicates)
+  const { rows: existing } = await query(
+    `SELECT id FROM orders WHERE id = $1`,
+    [orderId],
+  );
+  if (existing.length > 0) {
+    console.warn(`Order ${orderId} already exists, returning existing order`);
+    return getOrderById(orderId);
+  }
+
   // Everything below happens as one atomic transaction: if stock runs out
   // partway through a multi-item order, NOTHING is saved — no order, no
   // order items, no stock deducted. This is also what safely handles two

@@ -34,6 +34,7 @@ import { formatINR } from "../utils/storage.js";
 import paymentConfig from "../config/payment.js";
 import Header from "./Header.jsx";
 import Footer from "./Footer.jsx";
+import MyOrders from "./MyOrders.jsx";
 
 const STEPS = ["Details", "Payment", "Confirmed"];
 const EMPTY_ADDR_FORM = {
@@ -139,6 +140,7 @@ function CheckoutForm({
 }) {
   const { token } = useCustomerAuth();
   const [step, setStep] = useState(0);
+  const [showMyOrders, setShowMyOrders] = useState(false);
 
   // The customer object that goes into the order
   const [customer, setCustomer] = useState({
@@ -324,9 +326,21 @@ function CheckoutForm({
   }
 
   function finishOrder(paymentMethod, paymentRef) {
+    // Safeguard: Ensure token exists before creating order
+    if (!token) {
+      setPaymentError("Session expired. Please login and try again.");
+      setRazorLoading(false);
+      return;
+    }
+
     const placed = placeOrder(customer, paymentMethod, paymentRef);
     setOrder(placed);
     setStep(2);
+
+    // Auto-open My Orders after 2 seconds
+    setTimeout(() => {
+      setShowMyOrders(true);
+    }, 2000);
   }
 
   async function payWithRazorpay(restrictToUpi) {
@@ -982,6 +996,9 @@ function CheckoutForm({
           </Button>
         </Box>
       )}
+
+      {/* My Orders Dialog - Auto-opens after payment success */}
+      {showMyOrders && <MyOrders onClose={() => setShowMyOrders(false)} />}
     </Box>
   );
 }

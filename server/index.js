@@ -589,6 +589,11 @@ app.post("/api/orders", async (req, res) => {
   const payload = token ? verifyToken(token) : null;
   const userId = payload && !payload.mfaChallenge ? payload.sub : null;
 
+  // Safeguard: Log warning if no token (still allow, but warn)
+  if (!token) {
+    console.warn("Order created without customer token:", body.id);
+  }
+
   try {
     const saved = await orderStore.addOrder({
       id: body.id,
